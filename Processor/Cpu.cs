@@ -1,26 +1,7 @@
 namespace Processor;
 
-using static Cpu.AddressMode;
-
 public class Cpu
 {
-    public enum AddressMode
-    {
-        IMM,    //Immediate
-        ABS,    //Absolute
-        ZP,     //Zeropage
-        ACC,    //Accumulator
-        IMP,    //Implied
-        ABS_X,  //Absolute_x
-        ABS_Y,  //Absolute_y
-        ZP_X,   //Zeropage_x
-        ZP_Y,   //Zeropage_y
-        IND,    //Indirect
-        IND_X,  //Indirect_x
-        IND_Y,  //Indirect_y
-        REL,    //Relative
-    }
-    
     byte[] InstructionBytes =
     {
     //  0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F
@@ -62,27 +43,6 @@ public class Cpu
         2, 6, 0, 0, 3, 3, 5, 0, 2, 2, 2, 0, 4, 4, 6, 0, // E
         2, 5, 0, 0, 0, 4, 6, 0, 2, 4, 0, 0, 0, 4, 7, 0, // F
     };
-        
-    AddressMode[] AddressingModes =
-    {                    
-    //  0    1      2    3  4     5     6     7  8    9      A    B  C      D      E      F   
-        IMP, IND_X, 0,   0, 0,    ZP,   ZP,   0, IMP, IMM,   ACC, 0, 0,     ABS,   ABS,   0, // 0  
-        REL, IND_Y, 0,   0, 0,    ZP_X, ZP_X, 0, IMP, ABS_Y, 0,   0, 0,     ABS_X, ABS_X, 0, // 1  
-        ABS, IND_X, 0,   0, ZP,   ZP,   ZP,   0, IMP, IMM,   ACC, 0, ABS,   ABS,   ABS,   0, // 2  
-        REL, IND_Y, 0,   0, 0,    ZP_X, ZP_X, 0, IMP, ABS_Y, 0,   0, 0,     ABS_X, ABS_X, 0, // 3  
-        IMP, IND_X, 0,   0, 0,    ZP,   ZP,   0, IMP, IMM,   ACC, 0, ABS,   ABS,   ABS,   0, // 4  
-        REL, IND_Y, 0,   0, 0,    ZP_X, ZP_X, 0, IMP, ABS_Y, 0,   0, 0,     ABS_X, ABS_X, 0, // 5  
-        IMP, IND_X, 0,   0, 0,    ZP,   ZP,   0, IMP, IMM,   ACC, 0, IND,   ABS,   ABS,   0, // 6  
-        REL, IND_Y, 0,   0, 0,    ZP_X, ZP_X, 0, IMP, ABS_Y, 0,   0, 0,     ABS_X, ABS_X, 0, // 7  
-        0,   IND_X, 0,   0, ZP,   ZP,   ZP,   0, IMP, 0,     IMP, 0, ABS,   ABS,   ABS,   0, // 8  
-        REL, IND_Y, 0,   0, ZP_X, ZP_X, ZP_Y, 0, IMP, ABS_Y, IMP, 0, 0,     ABS_X, 0,     0, // 9  
-        IMM, IND_X, IMM, 0, ZP,   ZP,   ZP,   0, IMP, IMM,   IMP, 0, ABS,   ABS,   ABS,   0, // A  
-        REL, IND_Y, 0,   0, ZP_X, ZP_X, ZP_Y, 0, IMP, ABS_Y, IMP, 0, ABS_X, ABS_X, ABS_Y, 0, // B  
-        IMM, IND_X, 0,   0, ZP,   ZP,   ZP,   0, IMP, IMM,   IMP, 0, ABS,   ABS,   ABS,   0, // C  
-        REL, IND_Y, 0,   0, 0,    ZP_X, ZP_X, 0, IMP, ABS_Y, 0,   0, 0,     ABS_X, ABS_X, 0, // D  
-        IMM, IND_X, 0,   0, ZP,   ZP,   ZP,   0, IMP, IMM,   IMP, 0, ABS,   ABS,   ABS,   0, // E  
-        REL, IND_Y, 0,   0, 0,    ZP_X, ZP_X, 0, IMP, ABS_Y, 0,   0, 0,     ABS_X, ABS_X, 0, // F
-    };
 
     private readonly ICpuMemory _memory;
     byte A;    // Аккумулятор
@@ -99,6 +59,8 @@ public class Cpu
     bool B; // Break command
     bool V; // Overflow flag
     bool N; // Negative flag
+    private delegate (byte, Action<byte>) AddressMode();
+    private readonly AddressMode[] _addressModes;
     
     public byte P
     {
@@ -129,6 +91,25 @@ public class Cpu
 
     public Cpu(ICpuMemory memory)
     {
+        _addressModes = new AddressMode[] { 
+        //  0    1      2    3    4     5     6     7    8    9      A    B    C      D      E      F   
+            IMP, IND_X, XXX, XXX, XXX,  ZP,   ZP,   XXX, IMP, IMM,   ACC, XXX, XXX,   ABS,   ABS,   XXX, // 0  
+            REL, IND_Y, XXX, XXX, XXX,  ZP_X, ZP_X, XXX, IMP, ABS_Y, XXX, XXX, XXX,   ABS_X, ABS_X, XXX, // 1  
+            ABS, IND_X, XXX, XXX, ZP,   ZP,   ZP,   XXX, IMP, IMM,   ACC, XXX, ABS,   ABS,   ABS,   XXX, // 2  
+            REL, IND_Y, XXX, XXX, XXX,  ZP_X, ZP_X, XXX, IMP, ABS_Y, XXX, XXX, XXX,   ABS_X, ABS_X, XXX, // 3  
+            IMP, IND_X, XXX, XXX, XXX,  ZP,   ZP,   XXX, IMP, IMM,   ACC, XXX, ABS,   ABS,   ABS,   XXX, // 4  
+            REL, IND_Y, XXX, XXX, XXX,  ZP_X, ZP_X, XXX, IMP, ABS_Y, XXX, XXX, XXX,   ABS_X, ABS_X, XXX, // 5  
+            IMP, IND_X, XXX, XXX, XXX,  ZP,   ZP,   XXX, IMP, IMM,   ACC, XXX, IND,   ABS,   ABS,   XXX, // 6  
+            REL, IND_Y, XXX, XXX, XXX,  ZP_X, ZP_X, XXX, IMP, ABS_Y, XXX, XXX, XXX,   ABS_X, ABS_X, XXX, // 7  
+            XXX, IND_X, XXX, XXX, ZP,   ZP,   ZP,   XXX, IMP, XXX,   IMP, XXX, ABS,   ABS,   ABS,   XXX, // 8  
+            REL, IND_Y, XXX, XXX, ZP_X, ZP_X, ZP_Y, XXX, IMP, ABS_Y, IMP, XXX, XXX,   ABS_X, XXX,   XXX, // 9  
+            IMM, IND_X, IMM, XXX, ZP,   ZP,   ZP,   XXX, IMP, IMM,   IMP, XXX, ABS,   ABS,   ABS,   XXX, // A  
+            REL, IND_Y, XXX, XXX, ZP_X, ZP_X, ZP_Y, XXX, IMP, ABS_Y, IMP, XXX, ABS_X, ABS_X, ABS_Y, XXX, // B  
+            IMM, IND_X, XXX, XXX, ZP,   ZP,   ZP,   XXX, IMP, IMM,   IMP, XXX, ABS,   ABS,   ABS,   XXX, // C  
+            REL, IND_Y, XXX, XXX, XXX,  ZP_X, ZP_X, XXX, IMP, ABS_Y, XXX, XXX, XXX,   ABS_X, ABS_X, XXX, // D  
+            IMM, IND_X, XXX, XXX, ZP,   ZP,   ZP,   XXX, IMP, IMM,   IMP, XXX, ABS,   ABS,   ABS,   XXX, // E  
+            REL, IND_Y, XXX, XXX, XXX,  ZP_X, ZP_X, XXX, IMP, ABS_Y, XXX, XXX, XXX,   ABS_X, ABS_X, XXX, // F
+        };
         _memory = memory;
         Reset();
     }
@@ -142,4 +123,60 @@ public class Cpu
         P = 0x34;
         PC = _memory.Read16(0xFFFC);
     }
+    
+    //Accumulator
+    private (byte, Action<byte>) ACC() =>
+        throw new NotImplementedException();
+
+    //Implied
+    private (byte, Action<byte>) IMP() =>
+        throw new NotImplementedException();
+
+    //Immediate
+    private (byte, Action<byte>) IMM() =>
+        throw new NotImplementedException();
+
+    //Absolute
+    private (byte, Action<byte>) ABS() =>
+        throw new NotImplementedException();
+
+    //Zeropage
+    private (byte, Action<byte>) ZP() =>
+        throw new NotImplementedException();
+
+    //Relative
+    private (byte, Action<byte>) REL() =>
+        throw new NotImplementedException();
+  
+    //Indirect
+    private (byte, Action<byte>) IND() =>
+        throw new NotImplementedException();
+    
+    //Absolute_x
+    private (byte, Action<byte>) ABS_X() =>
+        throw new NotImplementedException();
+    
+    //Absolute_y
+    private (byte, Action<byte>) ABS_Y() =>
+        throw new NotImplementedException();
+    
+    //Zeropage_x
+    private (byte, Action<byte>) ZP_X() =>
+        throw new NotImplementedException();
+    
+    //Zeropage_y
+    private (byte, Action<byte>) ZP_Y() =>
+        throw new NotImplementedException();
+    
+    //Indirect_x
+    private (byte, Action<byte>) IND_X() =>
+        throw new NotImplementedException();
+    
+    //Indirect_y
+    private (byte, Action<byte>) IND_Y() =>
+        throw new NotImplementedException();
+
+    //Invalid opcode
+    private (byte, Action<byte>) XXX() =>
+        throw new Exception();
 }
