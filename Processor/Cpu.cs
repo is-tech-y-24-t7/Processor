@@ -375,5 +375,5 @@ public class Cpu
         };
 
     private Instruction[] InitInstructions() =>
-        new Instruction[] { }; // TODO
+        throw new NotImplementedException();
 }
