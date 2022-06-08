@@ -1,27 +1,346 @@
 namespace Processor;
 
-using static Cpu.AddressMode;
-
 public class Cpu
 {
-    public enum AddressMode
+    private readonly ICpuMemory _memory;
+    private byte A;    // Аккумулятор
+    private byte X;    //Индекс X 
+    private byte Y;    //Индекс Y
+    private ushort PC; // Cчетчик команд, 2 байта
+    private byte S;    // Указатель вершины стека
+    
+    // (P) Регистр статуса длиной 1 байт, разбит на 8 битов
+    private bool C; //Carry flag
+    private bool Z; // Zero flag
+    private bool I; // Interrpt Disable
+    private bool D; // Decimal Flag
+    private bool B; // Break command
+    private bool V; // Overflow flag
+    private bool N; // Negative flag
+    private delegate (byte, Action<byte>) AddressMode();
+    private readonly AddressMode[] _addressModes;
+
+    private delegate void Instruction(byte value, Action<byte> write);
+    private readonly Instruction[] _instructions;
+
+    private int _cycles;
+
+    private byte P
     {
-        IMM,    //Immediate
-        ABS,    //Absolute
-        ZP,     //Zeropage
-        ACC,    //Accumulator
-        IMP,    //Implied
-        ABS_X,  //Absolute_x
-        ABS_Y,  //Absolute_y
-        ZP_X,   //Zeropage_x
-        ZP_Y,   //Zeropage_y
-        IND,    //Indirect
-        IND_X,  //Indirect_x
-        IND_Y,  //Indirect_y
-        REL,    //Relative
+        get
+        {
+            byte value = 0;
+            if (C) value |= 1 << 0;
+            if (Z) value |= 1 << 1;
+            if (I) value |= 1 << 2;
+            if (D) value |= 1 << 3;
+            if (B) value |= 1 << 4;
+            value |= 1 << 5;
+            if (V) value |= 1 << 6;
+            if (N) value |= 1 << 7;
+            return value;
+        }
+        set
+        {
+            C = (value & 1<<0 ) != 0 ;
+            Z = (value & 1<<1) != 0;
+            I = (value & 1<<2) != 0;
+            D = (value & 1<<3) != 0;
+            B = (value & 1<<4) != 0;
+            V = (value & 1<<6) != 0;
+            N = (value & 1<<7) != 0;
+        }
+    }
+
+    public Cpu(ICpuMemory memory)
+    {
+        _addressModes = InitAddressModes();
+        _instructions = InitInstructions();
+        _memory = memory;
+        Reset();
+    }
+
+    public void Reset()
+    {
+        A = 0;
+        X = 0;
+        Y = 0;
+        S = 0xFD;
+        P = 0x34;
+        PC = _memory.Read16(0xFFFC);
+    }
+
+    public int Step()
+    {
+        var cycles = _cycles;
+        var opCode = _memory.Read(PC);
+        var (value, write) = _addressModes[opCode]();
+        PC += _instructionBytes[opCode];
+        _cycles += _instructionCycles[opCode];
+        _instructions[opCode](value, write);
+        return _cycles - cycles;
     }
     
-    byte[] InstructionBytes =
+    // Addressing modes
+    
+    //Accumulator
+    private (byte, Action<byte>) ACC() =>
+        throw new NotImplementedException();
+
+    //Implied
+    private (byte, Action<byte>) IMP() =>
+        throw new NotImplementedException();
+
+    //Immediate
+    private (byte, Action<byte>) IMM() =>
+        throw new NotImplementedException();
+
+    //Absolute
+    private (byte, Action<byte>) ABS() =>
+        throw new NotImplementedException();
+
+    //Zeropage
+    private (byte, Action<byte>) ZP() =>
+        throw new NotImplementedException();
+
+    //Relative
+    private (byte, Action<byte>) REL() =>
+        throw new NotImplementedException();
+  
+    //Indirect
+    private (byte, Action<byte>) IND() =>
+        throw new NotImplementedException();
+    
+    //Absolute_x
+    private (byte, Action<byte>) ABS_X() =>
+        throw new NotImplementedException();
+    
+    //Absolute_y
+    private (byte, Action<byte>) ABS_Y() =>
+        throw new NotImplementedException();
+    
+    //Zeropage_x
+    private (byte, Action<byte>) ZP_X() =>
+        throw new NotImplementedException();
+    
+    //Zeropage_y
+    private (byte, Action<byte>) ZP_Y() =>
+        throw new NotImplementedException();
+    
+    //Indirect_x
+    private (byte, Action<byte>) IND_X() =>
+        throw new NotImplementedException();
+    
+    //Indirect_y
+    private (byte, Action<byte>) IND_Y() =>
+        throw new NotImplementedException();
+
+    //Invalid opcode
+    private (byte, Action<byte>) XXX() =>
+        throw new Exception();
+    
+    // Instructions
+    
+    // Load
+    
+    void lda(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void ldx(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void ldy(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    // Store
+    
+    void sta(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void stx(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void sty(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    // Arithmetic
+    
+    void adc(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void sbc(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    // Increment and Decrement
+    
+    void inc(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void inx(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void iny(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void dec(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void dex(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void dey(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    // Shift and Rotate
+    
+    void asl(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void lsr(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void rol(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void ror(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    // Logic
+    
+    void and(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void ora(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void eor(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    // Compare and Test Bit
+    
+    void cmp(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void cpx(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void cpy(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void bit(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    // Branch
+    
+    void bcc(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void bcs(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void bne(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void beq(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void bpl(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void bmi(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void bvc(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void bvs(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    // Transfer
+    
+    void tax(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void txa(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void tay(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void tya(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void tsx(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void txs(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    // Stack
+    
+    void pha(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void pla(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void php(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+
+    void plp(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    // Subroutines and Jump
+    
+    void jmp(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void jsr(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void rts(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void rti(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    // Set and Clear
+    
+    void clc(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void sec(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void cld(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void sed(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void cli(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void sei(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void clv(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    // Misc
+    
+    void brk(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void nop(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+
+    void xxx(byte value, Action<byte> write) =>
+        throw new Exception();
+
+    // Constants
+    
+    private readonly byte[] _instructionBytes =
     {
     //  0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F
         1, 2, 0, 0, 0, 2, 2, 0, 1, 2, 1, 0, 0, 3, 3, 0, // 0
@@ -42,7 +361,7 @@ public class Cpu
         2, 2, 0, 0, 0, 2, 2, 0, 1, 3, 0, 0, 0, 3, 3, 0, // F
     };
         
-    byte[] MachineCycles =
+    private readonly byte[] _instructionCycles =
     { 
     //  0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F    
         7, 6, 0, 0, 0, 3, 5, 0, 3, 2, 2, 0, 0, 4, 6, 0, // 0
@@ -62,84 +381,28 @@ public class Cpu
         2, 6, 0, 0, 3, 3, 5, 0, 2, 2, 2, 0, 4, 4, 6, 0, // E
         2, 5, 0, 0, 0, 4, 6, 0, 2, 4, 0, 0, 0, 4, 7, 0, // F
     };
-        
-    AddressMode[] AddressingModes =
-    {                    
-    //  0    1      2    3  4     5     6     7  8    9      A    B  C      D      E      F   
-        IMP, IND_X, 0,   0, 0,    ZP,   ZP,   0, IMP, IMM,   ACC, 0, 0,     ABS,   ABS,   0, // 0  
-        REL, IND_Y, 0,   0, 0,    ZP_X, ZP_X, 0, IMP, ABS_Y, 0,   0, 0,     ABS_X, ABS_X, 0, // 1  
-        ABS, IND_X, 0,   0, ZP,   ZP,   ZP,   0, IMP, IMM,   ACC, 0, ABS,   ABS,   ABS,   0, // 2  
-        REL, IND_Y, 0,   0, 0,    ZP_X, ZP_X, 0, IMP, ABS_Y, 0,   0, 0,     ABS_X, ABS_X, 0, // 3  
-        IMP, IND_X, 0,   0, 0,    ZP,   ZP,   0, IMP, IMM,   ACC, 0, ABS,   ABS,   ABS,   0, // 4  
-        REL, IND_Y, 0,   0, 0,    ZP_X, ZP_X, 0, IMP, ABS_Y, 0,   0, 0,     ABS_X, ABS_X, 0, // 5  
-        IMP, IND_X, 0,   0, 0,    ZP,   ZP,   0, IMP, IMM,   ACC, 0, IND,   ABS,   ABS,   0, // 6  
-        REL, IND_Y, 0,   0, 0,    ZP_X, ZP_X, 0, IMP, ABS_Y, 0,   0, 0,     ABS_X, ABS_X, 0, // 7  
-        0,   IND_X, 0,   0, ZP,   ZP,   ZP,   0, IMP, 0,     IMP, 0, ABS,   ABS,   ABS,   0, // 8  
-        REL, IND_Y, 0,   0, ZP_X, ZP_X, ZP_Y, 0, IMP, ABS_Y, IMP, 0, 0,     ABS_X, 0,     0, // 9  
-        IMM, IND_X, IMM, 0, ZP,   ZP,   ZP,   0, IMP, IMM,   IMP, 0, ABS,   ABS,   ABS,   0, // A  
-        REL, IND_Y, 0,   0, ZP_X, ZP_X, ZP_Y, 0, IMP, ABS_Y, IMP, 0, ABS_X, ABS_X, ABS_Y, 0, // B  
-        IMM, IND_X, 0,   0, ZP,   ZP,   ZP,   0, IMP, IMM,   IMP, 0, ABS,   ABS,   ABS,   0, // C  
-        REL, IND_Y, 0,   0, 0,    ZP_X, ZP_X, 0, IMP, ABS_Y, 0,   0, 0,     ABS_X, ABS_X, 0, // D  
-        IMM, IND_X, 0,   0, ZP,   ZP,   ZP,   0, IMP, IMM,   IMP, 0, ABS,   ABS,   ABS,   0, // E  
-        REL, IND_Y, 0,   0, 0,    ZP_X, ZP_X, 0, IMP, ABS_Y, 0,   0, 0,     ABS_X, ABS_X, 0, // F
-    };
 
-    private readonly ICpuMemory _memory;
-    byte A;    // Аккумулятор
-    byte X;    //Индекс X 
-    byte Y;    //Индекс Y
-    ushort PC; // Cчетчик команд, 2 байта
-    byte S;    // Указатель вершины стека
-    
-    // (P) Регистр статуса длиной 1 байт, разбит на 8 битов
-    bool C; //Carry flag
-    bool Z; // Zero flag
-    bool I; // Interrpt Disable
-    bool D; // Decimal Flag
-    bool B; // Break command
-    bool V; // Overflow flag
-    bool N; // Negative flag
-    
-    public byte P
-    {
-        get
-        {
-            byte value = 0;
-            if (C) value |= 1 << 0;
-            if (Z) value |= 1 << 1;
-            if (I) value |= 1 << 2;
-            if (D) value |= 1 << 3;
-            if (B) value |= 1 << 4;
-            value |= 1 << 5;
-            if (V) value |= 1 << 6;
-            if (N) value |= 1 << 7;
-            return value;
-        }
-        set
-        {
-            C = (value & 1<<0 ) != 0 ;
-            Z = (value & 1<<1) != 0;
-            I = ((value & 1<<2) != 0);
-            D = ((value & 1<<3) != 0);
-            B = ((value & 1<<4) != 0);
-            V = ((value & 1<<6) != 0);
-            N = ((value & 1<<7) != 0);
-        }
-    }
+    private AddressMode[] InitAddressModes() =>
+        new AddressMode[] { 
+        //  0    1      2    3    4     5     6     7    8    9      A    B    C      D      E      F   
+            IMP, IND_X, XXX, XXX, XXX,  ZP,   ZP,   XXX, IMP, IMM,   ACC, XXX, XXX,   ABS,   ABS,   XXX, // 0  
+            REL, IND_Y, XXX, XXX, XXX,  ZP_X, ZP_X, XXX, IMP, ABS_Y, XXX, XXX, XXX,   ABS_X, ABS_X, XXX, // 1  
+            ABS, IND_X, XXX, XXX, ZP,   ZP,   ZP,   XXX, IMP, IMM,   ACC, XXX, ABS,   ABS,   ABS,   XXX, // 2  
+            REL, IND_Y, XXX, XXX, XXX,  ZP_X, ZP_X, XXX, IMP, ABS_Y, XXX, XXX, XXX,   ABS_X, ABS_X, XXX, // 3  
+            IMP, IND_X, XXX, XXX, XXX,  ZP,   ZP,   XXX, IMP, IMM,   ACC, XXX, ABS,   ABS,   ABS,   XXX, // 4  
+            REL, IND_Y, XXX, XXX, XXX,  ZP_X, ZP_X, XXX, IMP, ABS_Y, XXX, XXX, XXX,   ABS_X, ABS_X, XXX, // 5  
+            IMP, IND_X, XXX, XXX, XXX,  ZP,   ZP,   XXX, IMP, IMM,   ACC, XXX, IND,   ABS,   ABS,   XXX, // 6  
+            REL, IND_Y, XXX, XXX, XXX,  ZP_X, ZP_X, XXX, IMP, ABS_Y, XXX, XXX, XXX,   ABS_X, ABS_X, XXX, // 7  
+            XXX, IND_X, XXX, XXX, ZP,   ZP,   ZP,   XXX, IMP, XXX,   IMP, XXX, ABS,   ABS,   ABS,   XXX, // 8  
+            REL, IND_Y, XXX, XXX, ZP_X, ZP_X, ZP_Y, XXX, IMP, ABS_Y, IMP, XXX, XXX,   ABS_X, XXX,   XXX, // 9  
+            IMM, IND_X, IMM, XXX, ZP,   ZP,   ZP,   XXX, IMP, IMM,   IMP, XXX, ABS,   ABS,   ABS,   XXX, // A  
+            REL, IND_Y, XXX, XXX, ZP_X, ZP_X, ZP_Y, XXX, IMP, ABS_Y, IMP, XXX, ABS_X, ABS_X, ABS_Y, XXX, // B  
+            IMM, IND_X, XXX, XXX, ZP,   ZP,   ZP,   XXX, IMP, IMM,   IMP, XXX, ABS,   ABS,   ABS,   XXX, // C  
+            REL, IND_Y, XXX, XXX, XXX,  ZP_X, ZP_X, XXX, IMP, ABS_Y, XXX, XXX, XXX,   ABS_X, ABS_X, XXX, // D  
+            IMM, IND_X, XXX, XXX, ZP,   ZP,   ZP,   XXX, IMP, IMM,   IMP, XXX, ABS,   ABS,   ABS,   XXX, // E  
+            REL, IND_Y, XXX, XXX, XXX,  ZP_X, ZP_X, XXX, IMP, ABS_Y, XXX, XXX, XXX,   ABS_X, ABS_X, XXX, // F
+        };
 
-    public Cpu(ICpuMemory memory)
-    {
-        _memory = memory;
-        Reset();
-    }
-
-    public void Reset()
-    {
-        A = 0;
-        X = 0;
-        Y = 0;
-        S = 0xFD;
-        P = 0x34;
-        PC = _memory.Read16(0xFFFC);
-    }
+    private Instruction[] InitInstructions() =>
+        throw new NotImplementedException();
 }
