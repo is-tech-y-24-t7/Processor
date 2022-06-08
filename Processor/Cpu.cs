@@ -1,8 +1,10 @@
-namespace DefaultNamespace;
+namespace Processor;
+
+using static Cpu.AddressMode;
 
 public class Cpu
 {
-    enum AddressMode
+    public enum AddressMode
     {
         IMM,    //Immediate
         ABS,    //Absolute
@@ -38,7 +40,7 @@ public class Cpu
         2, 2, 0, 0, 0, 2, 2, 0, 1, 3, 0, 0, 0, 3, 3, 0, // D
         2, 2, 0, 0, 2, 2, 2, 0, 1, 2, 1, 0, 3, 3, 3, 0, // E
         2, 2, 0, 0, 0, 2, 2, 0, 1, 3, 0, 0, 0, 3, 3, 0, // F
-    }
+    };
         
     byte[] MachineCycles =
     { 
@@ -59,7 +61,7 @@ public class Cpu
         2, 5, 0, 0, 0, 4, 6, 0, 2, 4, 0, 0, 0, 4, 7, 0, // D
         2, 6, 0, 0, 3, 3, 5, 0, 2, 2, 2, 0, 4, 4, 6, 0, // E
         2, 5, 0, 0, 0, 4, 6, 0, 2, 4, 0, 0, 0, 4, 7, 0, // F
-    }
+    };
         
     AddressMode[] AddressingModes =
     {                    
@@ -80,6 +82,64 @@ public class Cpu
         REL, IND_Y, 0,   0, 0,    ZP_X, ZP_X, 0, IMP, ABS_Y, 0,   0, 0,     ABS_X, ABS_X, 0, // D  
         IMM, IND_X, 0,   0, ZP,   ZP,   ZP,   0, IMP, IMM,   IMP, 0, ABS,   ABS,   ABS,   0, // E  
         REL, IND_Y, 0,   0, 0,    ZP_X, ZP_X, 0, IMP, ABS_Y, 0,   0, 0,     ABS_X, ABS_X, 0, // F
+    };
+
+    private readonly ICpuMemory _memory;
+    byte A;    // Аккумулятор
+    byte X;    //Индекс X 
+    byte Y;    //Индекс Y
+    ushort PC; // Cчетчик команд, 2 байта
+    byte S;    // Указатель вершины стека
+    
+    // (P) Регистр статуса длиной 1 байт, разбит на 8 битов
+    bool C; //Carry flag
+    bool Z; // Zero flag
+    bool I; // Interrpt Disable
+    bool D; // Decimal Flag
+    bool B; // Break command
+    bool V; // Overflow flag
+    bool N; // Negative flag
+    
+    public byte P
+    {
+        get
+        {
+            byte value = 0;
+            if (C) value |= 1 << 0;
+            if (Z) value |= 1 << 1;
+            if (I) value |= 1 << 2;
+            if (D) value |= 1 << 3;
+            if (B) value |= 1 << 4;
+            value |= 1 << 5;
+            if (V) value |= 1 << 6;
+            if (N) value |= 1 << 7;
+            return value;
+        }
+        set
+        {
+            C = (value & 1<<0 ) != 0 ;
+            Z = (value & 1<<1) != 0;
+            I = ((value & 1<<2) != 0);
+            D = ((value & 1<<3) != 0);
+            B = ((value & 1<<4) != 0);
+            V = ((value & 1<<6) != 0);
+            N = ((value & 1<<7) != 0);
+        }
     }
 
+    public Cpu(ICpuMemory memory)
+    {
+        _memory = memory;
+        Reset();
+    }
+
+    public void Reset()
+    {
+        A = 0;
+        X = 0;
+        Y = 0;
+        S = 0xFD;
+        P = 0x34;
+        PC = _memory.Read16(0xFFFC);
+    }
 }
