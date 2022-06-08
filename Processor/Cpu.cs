@@ -2,6 +2,7 @@
 
 public class Cpu
 {
+    private readonly ICpuMemory _memory;
     byte A;    // Аккумулятор
     byte X;    //Индекс X 
     byte Y;    //Индекс Y
@@ -44,6 +45,12 @@ public class Cpu
         }
     }
 
+    public Cpu(ICpuMemory memory)
+    {
+        _memory = memory;
+        Reset();
+    }
+
     public void Reset()
     {
         A = 0;
@@ -51,5 +58,6 @@ public class Cpu
         Y = 0;
         S = 0xFD;
         P = 0x34;
+        PC = _memory.Read16(0xFFFC);
     }
 }
