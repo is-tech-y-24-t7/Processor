@@ -2,7 +2,7 @@ namespace Processor;
 
 public class Cpu
 {
-    byte[] InstructionBytes =
+    private readonly byte[] _instructionBytes =
     {
     //  0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F
         1, 2, 0, 0, 0, 2, 2, 0, 1, 2, 1, 0, 0, 3, 3, 0, // 0
@@ -23,7 +23,7 @@ public class Cpu
         2, 2, 0, 0, 0, 2, 2, 0, 1, 3, 0, 0, 0, 3, 3, 0, // F
     };
         
-    byte[] MachineCycles =
+    private readonly byte[] _instructionCycles =
     { 
     //  0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F    
         7, 6, 0, 0, 0, 3, 5, 0, 3, 2, 2, 0, 0, 4, 6, 0, // 0
@@ -45,24 +45,24 @@ public class Cpu
     };
 
     private readonly ICpuMemory _memory;
-    byte A;    // Аккумулятор
-    byte X;    //Индекс X 
-    byte Y;    //Индекс Y
-    ushort PC; // Cчетчик команд, 2 байта
-    byte S;    // Указатель вершины стека
+    private byte A;    // Аккумулятор
+    private byte X;    //Индекс X 
+    private byte Y;    //Индекс Y
+    private ushort PC; // Cчетчик команд, 2 байта
+    private byte S;    // Указатель вершины стека
     
     // (P) Регистр статуса длиной 1 байт, разбит на 8 битов
-    bool C; //Carry flag
-    bool Z; // Zero flag
-    bool I; // Interrpt Disable
-    bool D; // Decimal Flag
-    bool B; // Break command
-    bool V; // Overflow flag
-    bool N; // Negative flag
+    private bool C; //Carry flag
+    private bool Z; // Zero flag
+    private bool I; // Interrpt Disable
+    private bool D; // Decimal Flag
+    private bool B; // Break command
+    private bool V; // Overflow flag
+    private bool N; // Negative flag
     private delegate (byte, Action<byte>) AddressMode();
     private readonly AddressMode[] _addressModes;
-    
-    public byte P
+
+    private byte P
     {
         get
         {
