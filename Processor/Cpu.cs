@@ -80,52 +80,68 @@ public class Cpu
         _instructions[opCode](value, write);
         return _cycles - cycles;
     }
+
+    private void CheckPageCross(ushort frm, ushort to)
+        => throw new NotImplementedException();
     
     // Addressing modes
     
     //Accumulator
     private (byte, Action<byte>) ACC() =>
-        throw new NotImplementedException();
+        (A, value => A = value);
 
     //Implied
     private (byte, Action<byte>) IMP() =>
-        throw new NotImplementedException();
-
+        (0, _ => { });
+    
+    private (byte, Action<byte>) Addressed(ushort address) =>
+        (_memory.Read(address), value => _memory.Write(address, value));
+    
     //Immediate
     private (byte, Action<byte>) IMM() =>
-        throw new NotImplementedException();
+        Addressed((ushort) (PC + 1));
 
     //Absolute
     private (byte, Action<byte>) ABS() =>
-        throw new NotImplementedException();
+        Addressed(_memory.Read16((ushort) (PC + 1)));
 
     //Zeropage
     private (byte, Action<byte>) ZP() =>
-        throw new NotImplementedException();
+        Addressed(_memory.Read((ushort) (PC + 1)));
 
     //Relative
     private (byte, Action<byte>) REL() =>
-        throw new NotImplementedException();
+        Addressed((ushort) (PC + (sbyte) _memory.Read((ushort) (PC + 1)) + 2));
   
     //Indirect
     private (byte, Action<byte>) IND() =>
         throw new NotImplementedException();
-    
+
+    private (byte, Action<byte>) Absolute(byte offset)
+    {
+        var address = _memory.Read16((ushort) (PC + 1));
+        var newAddress = (ushort) (address + offset);
+        CheckPageCross(address, newAddress);
+        return Addressed(newAddress);
+    }
     //Absolute_x
     private (byte, Action<byte>) ABS_X() =>
-        throw new NotImplementedException();
-    
+        Absolute(X);
+
     //Absolute_y
     private (byte, Action<byte>) ABS_Y() =>
-        throw new NotImplementedException();
+        Absolute(Y);
+    
+    private (byte, Action<byte>) ZeroPage(byte offset) =>
+        Addressed((ushort) ((_memory.Read((ushort) (PC + 1)) + offset) & 0xFF));
     
     //Zeropage_x
     private (byte, Action<byte>) ZP_X() =>
-        throw new NotImplementedException();
+        ZeroPage(X);
     
     //Zeropage_y
     private (byte, Action<byte>) ZP_Y() =>
-        throw new NotImplementedException();
+        ZeroPage(Y);
     
     //Indirect_x
     private (byte, Action<byte>) IND_X() =>
