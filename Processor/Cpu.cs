@@ -62,6 +62,11 @@ public class Cpu
     private delegate (byte, Action<byte>) AddressMode();
     private readonly AddressMode[] _addressModes;
 
+    private delegate void Instruction(byte value, Action<byte> write);
+    private readonly Instruction[] _instructions;
+
+    private int _cycles;
+
     private byte P
     {
         get
@@ -122,6 +127,17 @@ public class Cpu
         S = 0xFD;
         P = 0x34;
         PC = _memory.Read16(0xFFFC);
+    }
+
+    public int Step()
+    {
+        var cycles = _cycles;
+        var opCode = _memory.Read(PC);
+        var (value, write) = _addressModes[opCode]();
+        PC += _instructionBytes[opCode];
+        _cycles += _instructionCycles[opCode];
+        _instructions[opCode](value, write);
+        return _cycles - cycles;
     }
     
     //Accumulator
