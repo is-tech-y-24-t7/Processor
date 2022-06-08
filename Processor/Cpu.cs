@@ -17,7 +17,7 @@ public class Cpu
     bool V; // Overflow flag
     bool N; // Negative flag
     
-    public byte SR
+    public byte P
     {
         get
         {
@@ -34,8 +34,6 @@ public class Cpu
         }
         set
         {
-            // Extract the corresponding bits for each weekday
-            // into bool properties of the class
             C = (value & 1<<0 ) != 0 ;
             Z = (value & 1<<1) != 0;
             I = ((value & 1<<2) != 0);
@@ -44,5 +42,14 @@ public class Cpu
             V = ((value & 1<<6) != 0);
             N = ((value & 1<<7) != 0);
         }
+    }
+
+    public void Reset()
+    {
+        A = 0;
+        X = 0;
+        Y = 0;
+        S = 0xFD;
+        P = 0x34;
     }
 }
