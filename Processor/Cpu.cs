@@ -55,6 +55,7 @@ public class Cpu
     public Cpu(ICpuMemory memory)
     {
         _addressModes = InitAddressModes();
+        _instructions = InitInstructions();
         _memory = memory;
         Reset();
     }
@@ -137,6 +138,176 @@ public class Cpu
     //Invalid opcode
     private (byte, Action<byte>) XXX() =>
         throw new Exception();
+    
+    // Instructions
+    
+    void lda(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void ldx(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void ldy(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void sta(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void stx(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void sty(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void adc(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void sbc(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void inc(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void inx(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void iny(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void dec(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void dex(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void dey(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void asl(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void lsr(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void rol(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void ror(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void and(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void ora(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void eor(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void cmp(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void cpx(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void cpy(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void bit(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void bcc(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void bcs(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void bne(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void beq(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void bpl(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void bmi(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void bvc(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void bvs(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void tax(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void txa(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void tay(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void tya(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void tsx(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void txs(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void pha(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void pla(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void php(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+
+    void plp(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void jmp(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void jsr(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void rts(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void rti(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void clc(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void sec(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void cld(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void sed(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void cli(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void sei(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void clv(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void brk(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
+    
+    void nop(byte value, Action<byte> write) =>
+        throw new NotImplementedException();
 
     // Constants
     
@@ -202,4 +373,7 @@ public class Cpu
             IMM, IND_X, XXX, XXX, ZP,   ZP,   ZP,   XXX, IMP, IMM,   IMP, XXX, ABS,   ABS,   ABS,   XXX, // E  
             REL, IND_Y, XXX, XXX, XXX,  ZP_X, ZP_X, XXX, IMP, ABS_Y, XXX, XXX, XXX,   ABS_X, ABS_X, XXX, // F
         };
+
+    private Instruction[] InitInstructions() =>
+        new Instruction[] { }; // TODO
 }
