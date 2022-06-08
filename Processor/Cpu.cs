@@ -335,6 +335,9 @@ public class Cpu
     void nop(byte value, Action<byte> write) =>
         throw new NotImplementedException();
 
+    void xxx(byte value, Action<byte> write) =>
+        throw new Exception();
+
     // Constants
     
     private readonly byte[] _instructionBytes =
