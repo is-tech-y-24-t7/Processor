@@ -141,6 +141,8 @@ public class Cpu
     
     // Instructions
     
+    // Load
+    
     void lda(byte value, Action<byte> write) =>
         throw new NotImplementedException();
     
@@ -149,6 +151,8 @@ public class Cpu
     
     void ldy(byte value, Action<byte> write) =>
         throw new NotImplementedException();
+    
+    // Store
     
     void sta(byte value, Action<byte> write) =>
         throw new NotImplementedException();
@@ -159,11 +163,15 @@ public class Cpu
     void sty(byte value, Action<byte> write) =>
         throw new NotImplementedException();
     
+    // Arithmetic
+    
     void adc(byte value, Action<byte> write) =>
         throw new NotImplementedException();
     
     void sbc(byte value, Action<byte> write) =>
         throw new NotImplementedException();
+    
+    // Increment and Decrement
     
     void inc(byte value, Action<byte> write) =>
         throw new NotImplementedException();
@@ -183,6 +191,8 @@ public class Cpu
     void dey(byte value, Action<byte> write) =>
         throw new NotImplementedException();
     
+    // Shift and Rotate
+    
     void asl(byte value, Action<byte> write) =>
         throw new NotImplementedException();
     
@@ -195,6 +205,8 @@ public class Cpu
     void ror(byte value, Action<byte> write) =>
         throw new NotImplementedException();
     
+    // Logic
+    
     void and(byte value, Action<byte> write) =>
         throw new NotImplementedException();
     
@@ -203,6 +215,8 @@ public class Cpu
     
     void eor(byte value, Action<byte> write) =>
         throw new NotImplementedException();
+    
+    // Compare and Test Bit
     
     void cmp(byte value, Action<byte> write) =>
         throw new NotImplementedException();
@@ -215,6 +229,8 @@ public class Cpu
     
     void bit(byte value, Action<byte> write) =>
         throw new NotImplementedException();
+    
+    // Branch
     
     void bcc(byte value, Action<byte> write) =>
         throw new NotImplementedException();
@@ -240,6 +256,8 @@ public class Cpu
     void bvs(byte value, Action<byte> write) =>
         throw new NotImplementedException();
     
+    // Transfer
+    
     void tax(byte value, Action<byte> write) =>
         throw new NotImplementedException();
     
@@ -258,6 +276,8 @@ public class Cpu
     void txs(byte value, Action<byte> write) =>
         throw new NotImplementedException();
     
+    // Stack
+    
     void pha(byte value, Action<byte> write) =>
         throw new NotImplementedException();
     
@@ -270,6 +290,8 @@ public class Cpu
     void plp(byte value, Action<byte> write) =>
         throw new NotImplementedException();
     
+    // Subroutines and Jump
+    
     void jmp(byte value, Action<byte> write) =>
         throw new NotImplementedException();
     
@@ -281,6 +303,8 @@ public class Cpu
     
     void rti(byte value, Action<byte> write) =>
         throw new NotImplementedException();
+    
+    // Set and Clear
     
     void clc(byte value, Action<byte> write) =>
         throw new NotImplementedException();
@@ -302,6 +326,8 @@ public class Cpu
     
     void clv(byte value, Action<byte> write) =>
         throw new NotImplementedException();
+    
+    // Misc
     
     void brk(byte value, Action<byte> write) =>
         throw new NotImplementedException();
