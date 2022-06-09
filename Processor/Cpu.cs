@@ -105,9 +105,8 @@ public class Cpu
         return _cycles - cycles;
     }
 
-    bool IsPageCross(ushort from, ushort to) =>
-        throw new NotImplementedException();
-    
+    bool IsPageCross(ushort from, ushort to) => (from & 0xFF) != (to & 0xFF);
+
     // Addressing modes
     
     //Accumulator
