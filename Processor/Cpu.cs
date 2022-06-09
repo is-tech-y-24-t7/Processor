@@ -117,7 +117,7 @@ public class Cpu
     private (byte, Action<byte>) IND() =>
         throw new NotImplementedException();
 
-    private (byte, Action<byte>) Absolute(byte offset)
+    private (byte, Action<byte>) AbsoluteIndexed(byte offset)
     {
         var address = _memory.Read16((ushort) (PC + 1));
         var newAddress = (ushort) (address + offset);
@@ -126,22 +126,22 @@ public class Cpu
     }
     //Absolute_x
     private (byte, Action<byte>) ABS_X() =>
-        Absolute(X);
+        AbsoluteIndexed(X);
 
     //Absolute_y
     private (byte, Action<byte>) ABS_Y() =>
-        Absolute(Y);
+        AbsoluteIndexed(Y);
     
-    private (byte, Action<byte>) ZeroPage(byte offset) =>
+    private (byte, Action<byte>) ZeroPageIndexed(byte offset) =>
         Addressed((ushort) ((_memory.Read((ushort) (PC + 1)) + offset) & 0xFF));
     
     //Zeropage_x
     private (byte, Action<byte>) ZP_X() =>
-        ZeroPage(X);
+        ZeroPageIndexed(X);
     
     //Zeropage_y
     private (byte, Action<byte>) ZP_Y() =>
-        ZeroPage(Y);
+        ZeroPageIndexed(Y);
     
     //Indirect_x
     private (byte, Action<byte>) IND_X() =>
