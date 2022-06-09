@@ -376,32 +376,57 @@ public class Cpu
         SetZN(S = X);
     
     // Stack
+    // TODO check this
+    void PushStack(byte value) =>
+        _memory.Write((ushort) (S-- | 0x100), value);
+
+    void PushStack16(ushort value)
+    {
+        _memory.Write16((ushort) (--S | 0x100), value);
+        S--;
+    }
+
+    byte PullStack() =>
+        _memory.Read((ushort) (++S | 0x100));
+
+    ushort PullStack16()
+    {
+        var value = _memory.Read16((ushort) (++S | 0x100));
+        S++;
+        return value;
+    }
 
     void pha(InstructionContext ctx) =>
-        throw new NotImplementedException();
+        PushStack(A);
 
     void pla(InstructionContext ctx) =>
-        throw new NotImplementedException();
+        SetZN(A = PullStack());
 
     void php(InstructionContext ctx) =>
-        throw new NotImplementedException();
+        PushStack(P);
 
     void plp(InstructionContext ctx) =>
-        throw new NotImplementedException();
+        P = PullStack();
     
     // Subroutines and Jump
     
     void jmp(InstructionContext ctx) =>
         PC = _memory.Read16(ctx.Address);
-    
-    void jsr(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
+
+    void jsr(InstructionContext ctx)
+    {
+        PushStack16((ushort) (PC - 1));
+        PC = _memory.Read16(ctx.Address);
+    }
+
     void rts(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
-    void rti(InstructionContext ctx) =>
-        throw new NotImplementedException();
+        PC = (ushort) (PullStack16() + 1);
+
+    void rti(InstructionContext ctx)
+    {
+        S = PullStack();
+        PC = PullStack16();
+    }
     
     // Set and Clear
 
