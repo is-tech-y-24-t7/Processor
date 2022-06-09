@@ -4,6 +4,8 @@ public class Cpu
 {
     private struct InstructionContext
     {
+        private Action<byte> _write;
+        private byte _value;
         public InstructionContext(byte value, ushort address, Action<byte> write)
         {
             _value = value;
@@ -20,10 +22,8 @@ public class Cpu
                 _write.Invoke(value);
             }
         }
-
         public ushort Address { get; }
-        private Action<byte> _write;
-        private byte _value;
+        
 }
     
     private readonly ICpuMemory _memory;
