@@ -392,7 +392,7 @@ public class Cpu
     // Subroutines and Jump
     
     void jmp(InstructionContext ctx) =>
-        throw new NotImplementedException();
+        PC = _memory.Read16(ctx.Address);
     
     void jsr(InstructionContext ctx) =>
         throw new NotImplementedException();
