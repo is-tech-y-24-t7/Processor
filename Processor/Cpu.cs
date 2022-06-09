@@ -526,6 +526,24 @@ public class Cpu
             REL, IND_Y, XXX, XXX, XXX,  ZP_X, ZP_X, XXX, IMP, ABS_Y, XXX, XXX, XXX,   ABS_X, ABS_X, XXX, // F
         };
 
-    private Instruction[] InitInstructions() =>
-        throw new NotImplementedException();
+    private Instruction[] InitInstructions() => new Instruction[]
+    {
+        //  0    1    2    3    4    5    6    7    8    9    A    B    C    D    E    F
+        brk, ora, xxx, xxx, xxx, ora, asl, xxx, php, ora, asl, xxx, xxx, ora, asl, xxx, // 0
+        bpl, ora, xxx, xxx, xxx, ora, asl, xxx, clc, ora, xxx, xxx, xxx, ora, asl, xxx, // 1
+        jsr, and, xxx, xxx, bit, and, rol, xxx, plp, and, rol, xxx, bit, and, rol, xxx, // 2
+        bmi, and, xxx, xxx, xxx, and, rol, xxx, sec, and, xxx, xxx, xxx, and, rol, xxx, // 3
+        rti, eor, xxx, xxx, xxx, eor, lsr, xxx, pha, eor, lsr, xxx, jmp, eor, lsr, xxx, // 4
+        bvc, eor, xxx, xxx, xxx, eor, lsr, xxx, cli, eor, xxx, xxx, xxx, eor, lsr, xxx, // 5
+        rts, adc, xxx, xxx, xxx, adc, ror, xxx, pla, adc, ror, xxx, jmp, adc, ror, xxx, // 6
+        bvs, adc, xxx, xxx, xxx, adc, ror, xxx, sei, adc, xxx, xxx, xxx, adc, ror, xxx, // 7
+        xxx, sta, xxx, xxx, sty, sta, stx, xxx, dey, xxx, txa, xxx, sty, sta, stx, xxx, // 8
+        bcc, sta, xxx, xxx, sty, sta, stx, xxx, tya, sta, txs, xxx, xxx, sta, xxx, xxx, // 9
+        ldy, lda, ldx, xxx, ldy, lda, ldx, xxx, tay, lda, tax, xxx, ldy, lda, ldx, xxx, // A
+        bcs, lda, xxx, xxx, ldy, lda, ldx, xxx, clv, lda, tsx, xxx, ldy, lda, ldx, xxx, // B
+        cpy, cmp, xxx, xxx, cpy, cmp, dec, xxx, iny, cmp, dex, xxx, cpy, cmp, dec, xxx, // C
+        bne, cmp, xxx, xxx, xxx, cmp, dec, xxx, cld, cmp, xxx, xxx, xxx, cmp, dec, xxx, // D
+        cpx, sbc, xxx, xxx, cpx, sbc, inc, xxx, inx, sbc, nop, xxx, cpx, sbc, inc, xxx, // E
+        beq, sbc, xxx, xxx, xxx, sbc, inc, xxx, sed, sbc, xxx, xxx, xxx, sbc, inc, xxx  // F
+    };
 }
