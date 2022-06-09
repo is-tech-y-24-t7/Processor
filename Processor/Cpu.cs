@@ -145,11 +145,16 @@ public class Cpu
     
     //Indirect_x
     private (byte, Action<byte>) IND_X() =>
-        throw new NotImplementedException();
+        Addressed(_memory.Read16Wrap((ushort) ((_memory.Read((ushort) (PC + 1)) + X) & 0xFF)));
     
     //Indirect_y
-    private (byte, Action<byte>) IND_Y() =>
-        throw new NotImplementedException();
+    private (byte, Action<byte>) IND_Y()
+    {
+        var address = _memory.Read16Wrap(_memory.Read((ushort) (PC + 1)));
+        var newAddress = (ushort) (address + Y);
+        CheckPageCross(address, newAddress);
+        return Addressed(newAddress);
+    }
 
     //Invalid opcode
     private (byte, Action<byte>) XXX() =>
