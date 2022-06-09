@@ -111,7 +111,7 @@ public class Cpu
 
     //Relative
     private (byte, Action<byte>) REL() =>
-        Addressed((ushort) (PC + (sbyte) _memory.Read((ushort) (PC + 1)) + 2));
+        (_memory.Read((ushort) (PC + 1)), _ => { });
   
     //Indirect
     private (byte, Action<byte>) IND() =>
