@@ -6,15 +6,25 @@ public class Cpu
     {
         public InstructionContext(byte value, ushort address, Action<byte> write)
         {
-            Value = value;
+            _value = value;
             Address = address;
-            Write = write;
+            _write = write;
         }
 
-        public byte Value { get; }
+        public byte Value
+        {
+            get => _value;
+            set
+            {
+                _value = value;
+                _write.Invoke(value);
+            }
+        }
+
         public ushort Address { get; }
-        public Action<byte> Write { get; }
-    }
+        private Action<byte> _write;
+        private byte _value;
+}
     
     private readonly ICpuMemory _memory;
     private byte A;    // Аккумулятор
@@ -175,155 +185,209 @@ public class Cpu
         throw new Exception();
     
     // Instructions
+    void SetZN(byte value)
+    {
+        Z = value == 0;
+        N = ((value >> 7) & 1) == 1;
+    }
     
     // Load
-    
-    void lda(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
+
+    void lda(InstructionContext ctx)
+        => SetZN(A = ctx.Value);
+
     void ldx(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
+        SetZN(X = ctx.Value);
+
     void ldy(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
+        SetZN(Y = ctx.Value);
     // Store
-    
+
     void sta(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
+        ctx.Value = A;
+
     void stx(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
+        ctx.Value = X;
+
     void sty(InstructionContext ctx) =>
-        throw new NotImplementedException();
+        ctx.Value = Y;
     
     // Arithmetic
     
-    void adc(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
-    void sbc(InstructionContext ctx) =>
-        throw new NotImplementedException();
+    void adc(InstructionContext ctx)
+    {
+        var sum = A + ctx.Value + (C ? 1 : 0);
+        C = sum > 0xFF;
+        var result = (byte) sum;
+        V = (~(A ^ ctx.Value) & (A ^ result) & 0x80) != 0;
+        SetZN(A = result);
+    }
+
+    void sbc(InstructionContext ctx)
+    {
+        var diff = A - ctx.Value - (C ? 0 : 1);
+        C = diff >= 0;
+        var result = (byte) diff;
+        V = ((A ^ ctx.Value) & (A ^ result) & 0x80) != 0;
+        SetZN(A = result);
+    }
     
     // Increment and Decrement
-    
+
     void inc(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
+        SetZN(++ctx.Value);
+
     void inx(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
+        SetZN(++X);
+
     void iny(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
+        SetZN(++Y);
+
     void dec(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
+        SetZN(--ctx.Value);
+
     void dex(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
+        SetZN(--X);
+
     void dey(InstructionContext ctx) =>
-        throw new NotImplementedException();
+        SetZN(--Y);
     
     // Shift and Rotate
-    
-    void asl(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
-    void lsr(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
-    void rol(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
-    void ror(InstructionContext ctx) =>
-        throw new NotImplementedException();
+
+    void asl(InstructionContext ctx)
+    {
+        C = ((ctx.Value >> 7) & 1) == 1;
+        ctx.Value <<= 1;
+        SetZN(ctx.Value);
+    }
+
+    void lsr(InstructionContext ctx)
+    {
+        C = (ctx.Value & 1) == 1;
+        ctx.Value >>= 1;
+        SetZN(ctx.Value);
+    }
+
+    void rol(InstructionContext ctx)
+    {
+        var oldC = C;
+        C = ((ctx.Value >> 7) & 1) == 1;
+        ctx.Value = (byte) ((ctx.Value << 1) | (oldC ? 1 : 0));
+        SetZN(ctx.Value);
+    }
+
+    void ror(InstructionContext ctx)
+    {
+        var oldC = C;
+        C = (ctx.Value & 1) == 1;
+        ctx.Value = (byte) ((ctx.Value >> 1) | ((oldC ? 1 : 0) << 7));
+        SetZN(ctx.Value);
+    }
     
     // Logic
-    
+
     void and(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
+        SetZN(A &= ctx.Value);
+
     void ora(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
+        SetZN(A |= ctx.Value);
+
     void eor(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
+        SetZN(A ^= ctx.Value);
     // Compare and Test Bit
-    
+
+    void Compare(int diff)
+    {
+        N = diff < 0;
+        Z = diff == 0;
+        C = diff >= 0;
+    }
+
     void cmp(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
+        Compare(A - ctx.Value);
+
     void cpx(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
+        Compare(X - ctx.Value);
+
     void cpy(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
-    void bit(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
+        Compare(Y - ctx.Value);
+
+    void bit(InstructionContext ctx)
+    {
+        N = ((ctx.Value >> 7) & 1) == 1;
+        V = ((ctx.Value >> 6) & 1) == 1;
+        Z = (A & ctx.Value) == 0;
+    }
     // Branch
-    
-    void bcc(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
-    void bcs(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
-    void bne(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
-    void beq(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
-    void bpl(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
-    void bmi(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
-    void bvc(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
-    void bvs(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
-    // Transfer
-    
-    void tax(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
-    void txa(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
-    void tay(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
-    void tya(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
-    void tsx(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
-    void txs(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
-    // Stack
-    
-    void pha(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
-    void pla(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
-    void php(InstructionContext ctx) =>
+
+    bool IsPageCross(ushort from, ushort to) =>
         throw new NotImplementedException();
 
+    void Branch(bool cond, byte offset)
+    {
+        if (!cond) return;
+        var newPC = (ushort) (PC + (sbyte) offset);
+        _cycles += 1 + (IsPageCross(PC, newPC) ? 1 : 0);
+        PC = newPC;
+    }
+
+    void bcc(InstructionContext ctx) =>
+        Branch(!C, ctx.Value);
+
+    void bcs(InstructionContext ctx) =>
+        Branch(C, ctx.Value);
+
+    void bne(InstructionContext ctx) =>
+        Branch(!Z, ctx.Value);
+
+    void beq(InstructionContext ctx) =>
+        Branch(Z, ctx.Value);
+
+    void bpl(InstructionContext ctx) =>
+        Branch(!N, ctx.Value);
+
+    void bmi(InstructionContext ctx) =>
+        Branch(N, ctx.Value);
+
+    void bvc(InstructionContext ctx) =>
+        Branch(!V, ctx.Value);
+
+    void bvs(InstructionContext ctx) =>
+        Branch(V, ctx.Value);
+    
+    // Transfer
+
+    void tax(InstructionContext ctx) =>
+        SetZN(X = A);
+
+    void txa(InstructionContext ctx) =>
+        SetZN(A = X);
+
+    void tay(InstructionContext ctx) =>
+        SetZN(Y = A);
+
+    void tya(InstructionContext ctx) =>
+        SetZN(A = Y);
+
+    void tsx(InstructionContext ctx) =>
+        SetZN(X = S);
+
+    void txs(InstructionContext ctx) =>
+        SetZN(S = X);
+    
+    // Stack
+
+    void pha(InstructionContext ctx) =>
+        S = A;
+
+    void pla(InstructionContext ctx) =>
+        A = S;
+
+    void php(InstructionContext ctx) =>
+        S = P;
+
     void plp(InstructionContext ctx) =>
-        throw new NotImplementedException();
+        P = S;
     
     // Subroutines and Jump
     
@@ -340,35 +404,37 @@ public class Cpu
         throw new NotImplementedException();
     
     // Set and Clear
-    
+
     void clc(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
+        C = false;
+
     void sec(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
+        C = true;
+
     void cld(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
+        D = false;
+
     void sed(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
+        D = true;
+
     void cli(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
+        I = false;
+
     void sei(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
+        I = true;
+
     void clv(InstructionContext ctx) =>
-        throw new NotImplementedException();
+        V = false;
     
     // Misc
+
+    void brk(InstructionContext ctx)
+    {
+        B = true;
+        I = true;
+    }
     
-    void brk(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
-    void nop(InstructionContext ctx) =>
-        throw new NotImplementedException();
+    void nop(InstructionContext ctx) { }
 
     void xxx(InstructionContext ctx) =>
         throw new Exception();
