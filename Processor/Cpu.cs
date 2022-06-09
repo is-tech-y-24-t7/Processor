@@ -91,7 +91,7 @@ public class Cpu
         (A, value => A = value);
 
     //Implied
-    private (byte, Action<byte>) IMP() =>
+    private static (byte, Action<byte>) IMP() =>
         (0, _ => { });
     
     private (byte, Action<byte>) Addressed(ushort address) =>
@@ -117,7 +117,7 @@ public class Cpu
     // JMP is the only instruction that uses this mode
     // as a special case we let it handle things itself,
     // since it requires both bytes of the argument
-    private (byte, Action<byte>) IND() =>
+    private static (byte, Action<byte>) IND() =>
         (0, _ => { });
 
     private (byte, Action<byte>) AbsoluteIndexed(byte offset)
