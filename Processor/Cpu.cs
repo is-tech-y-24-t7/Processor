@@ -105,8 +105,8 @@ public class Cpu
         return _cycles - cycles;
     }
 
-    private void CheckPageCross(ushort frm, ushort to)
-        => throw new NotImplementedException();
+    bool IsPageCross(ushort from, ushort to) =>
+        throw new NotImplementedException();
     
     // Addressing modes
     
@@ -145,7 +145,7 @@ public class Cpu
     {
         var address = _memory.Read16((ushort) (PC + 1));
         var newAddress = (ushort) (address + offset);
-        CheckPageCross(address, newAddress);
+        if (IsPageCross(address, newAddress)) _cycles++;
         return Addressed(newAddress);
     }
     //Absolute_x
@@ -176,7 +176,7 @@ public class Cpu
     {
         var address = _memory.Read16Wrap(_memory.Read((ushort) (PC + 1)));
         var newAddress = (ushort) (address + Y);
-        CheckPageCross(address, newAddress);
+        if (IsPageCross(address, newAddress)) _cycles++;
         return Addressed(newAddress);
     }
 
@@ -319,9 +319,6 @@ public class Cpu
         Z = (A & ctx.Value) == 0;
     }
     // Branch
-
-    bool IsPageCross(ushort from, ushort to) =>
-        throw new NotImplementedException();
 
     void Branch(bool cond, byte offset)
     {
