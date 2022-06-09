@@ -106,7 +106,7 @@ public class Cpu
 
     //Implied
     private static InstructionContext IMP() =>
-        new InstructionContext(0, 0, _ => { });
+        new (0, 0, _ => { });
     
     private InstructionContext Addressed(ushort address) =>
         new(_memory.Read(address), address, value => _memory.Write(address, value));
@@ -131,8 +131,8 @@ public class Cpu
     // JMP is the only instruction that uses this mode
     // as a special case we let it handle things itself,
     // since it requires both bytes of the argument
-    private static InstructionContext IND() =>
-        throw new NotImplementedException();
+    private InstructionContext IND() =>
+        Addressed(_memory.Read16Wrap(_memory.Read16((ushort) (PC + 1))));
 
     private InstructionContext AbsoluteIndexed(byte offset)
     {
