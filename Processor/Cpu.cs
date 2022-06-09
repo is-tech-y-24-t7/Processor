@@ -378,16 +378,16 @@ public class Cpu
     // Stack
 
     void pha(InstructionContext ctx) =>
-        S = A;
+        throw new NotImplementedException();
 
     void pla(InstructionContext ctx) =>
-        A = S;
+        throw new NotImplementedException();
 
     void php(InstructionContext ctx) =>
-        S = P;
+        throw new NotImplementedException();
 
     void plp(InstructionContext ctx) =>
-        P = S;
+        throw new NotImplementedException();
     
     // Subroutines and Jump
     
