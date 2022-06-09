@@ -2,6 +2,20 @@ namespace Processor;
 
 public class Cpu
 {
+    private struct InstructionContext
+    {
+        public InstructionContext(byte value, ushort address, Action<byte> write)
+        {
+            Value = value;
+            Address = address;
+            Write = write;
+        }
+
+        public byte Value { get; }
+        public ushort Address { get; }
+        public Action<byte> Write { get; }
+    }
+    
     private readonly ICpuMemory _memory;
     private byte A;    // Аккумулятор
     private byte X;    //Индекс X 
@@ -17,10 +31,10 @@ public class Cpu
     private bool B; // Break command
     private bool V; // Overflow flag
     private bool N; // Negative flag
-    private delegate (byte, Action<byte>) AddressMode();
+    private delegate InstructionContext AddressMode();
     private readonly AddressMode[] _addressModes;
 
-    private delegate void Instruction(byte value, Action<byte> write);
+    private delegate void Instruction(InstructionContext ctx);
     private readonly Instruction[] _instructions;
 
     private int _cycles;
@@ -74,268 +88,289 @@ public class Cpu
     {
         var cycles = _cycles;
         var opCode = _memory.Read(PC);
-        var (value, write) = _addressModes[opCode]();
+        var ctx = _addressModes[opCode]();
         PC += _instructionBytes[opCode];
         _cycles += _instructionCycles[opCode];
-        _instructions[opCode](value, write);
+        _instructions[opCode](ctx);
         return _cycles - cycles;
     }
+
+    private void CheckPageCross(ushort frm, ushort to)
+        => throw new NotImplementedException();
     
     // Addressing modes
     
     //Accumulator
-    private (byte, Action<byte>) ACC() =>
-        throw new NotImplementedException();
+    private InstructionContext ACC() =>
+        new (A, 0, value => A = value);
 
     //Implied
-    private (byte, Action<byte>) IMP() =>
-        throw new NotImplementedException();
-
+    private static InstructionContext IMP() =>
+        new (0, 0, _ => { });
+    
+    private InstructionContext Addressed(ushort address) =>
+        new(_memory.Read(address), address, value => _memory.Write(address, value));
+    
     //Immediate
-    private (byte, Action<byte>) IMM() =>
-        throw new NotImplementedException();
+    private InstructionContext IMM() =>
+        Addressed((ushort) (PC + 1));
 
     //Absolute
-    private (byte, Action<byte>) ABS() =>
-        throw new NotImplementedException();
+    private InstructionContext ABS() =>
+        Addressed(_memory.Read16((ushort) (PC + 1)));
 
     //Zeropage
-    private (byte, Action<byte>) ZP() =>
-        throw new NotImplementedException();
+    private InstructionContext ZP() =>
+        Addressed(_memory.Read((ushort) (PC + 1)));
 
     //Relative
-    private (byte, Action<byte>) REL() =>
-        throw new NotImplementedException();
+    private InstructionContext REL() =>
+        new (_memory.Read((ushort) (PC + 1)), 0, _ => { });
   
     //Indirect
-    private (byte, Action<byte>) IND() =>
-        throw new NotImplementedException();
-    
+    private InstructionContext IND() =>
+        Addressed(_memory.Read16Wrap(_memory.Read16((ushort) (PC + 1))));
+
+    private InstructionContext AbsoluteIndexed(byte offset)
+    {
+        var address = _memory.Read16((ushort) (PC + 1));
+        var newAddress = (ushort) (address + offset);
+        CheckPageCross(address, newAddress);
+        return Addressed(newAddress);
+    }
     //Absolute_x
-    private (byte, Action<byte>) ABS_X() =>
-        throw new NotImplementedException();
-    
+    private InstructionContext ABS_X() =>
+        AbsoluteIndexed(X);
+
     //Absolute_y
-    private (byte, Action<byte>) ABS_Y() =>
-        throw new NotImplementedException();
+    private InstructionContext ABS_Y() =>
+        AbsoluteIndexed(Y);
+    
+    private InstructionContext ZeroPageIndexed(byte offset) =>
+        Addressed((ushort) ((_memory.Read((ushort) (PC + 1)) + offset) & 0xFF));
     
     //Zeropage_x
-    private (byte, Action<byte>) ZP_X() =>
-        throw new NotImplementedException();
+    private InstructionContext ZP_X() =>
+        ZeroPageIndexed(X);
     
     //Zeropage_y
-    private (byte, Action<byte>) ZP_Y() =>
-        throw new NotImplementedException();
+    private InstructionContext ZP_Y() =>
+        ZeroPageIndexed(Y);
     
     //Indirect_x
-    private (byte, Action<byte>) IND_X() =>
-        throw new NotImplementedException();
+    private InstructionContext IND_X() =>
+        Addressed(_memory.Read16Wrap((ushort) ((_memory.Read((ushort) (PC + 1)) + X) & 0xFF)));
     
     //Indirect_y
-    private (byte, Action<byte>) IND_Y() =>
-        throw new NotImplementedException();
+    private InstructionContext IND_Y()
+    {
+        var address = _memory.Read16Wrap(_memory.Read((ushort) (PC + 1)));
+        var newAddress = (ushort) (address + Y);
+        CheckPageCross(address, newAddress);
+        return Addressed(newAddress);
+    }
 
     //Invalid opcode
-    private (byte, Action<byte>) XXX() =>
+    private InstructionContext XXX() =>
         throw new Exception();
     
     // Instructions
     
     // Load
     
-    void lda(byte value, Action<byte> write) =>
+    void lda(InstructionContext ctx) =>
         throw new NotImplementedException();
     
-    void ldx(byte value, Action<byte> write) =>
+    void ldx(InstructionContext ctx) =>
         throw new NotImplementedException();
     
-    void ldy(byte value, Action<byte> write) =>
+    void ldy(InstructionContext ctx) =>
         throw new NotImplementedException();
     
     // Store
     
-    void sta(byte value, Action<byte> write) =>
+    void sta(InstructionContext ctx) =>
         throw new NotImplementedException();
     
-    void stx(byte value, Action<byte> write) =>
+    void stx(InstructionContext ctx) =>
         throw new NotImplementedException();
     
-    void sty(byte value, Action<byte> write) =>
+    void sty(InstructionContext ctx) =>
         throw new NotImplementedException();
     
     // Arithmetic
     
-    void adc(byte value, Action<byte> write) =>
+    void adc(InstructionContext ctx) =>
         throw new NotImplementedException();
     
-    void sbc(byte value, Action<byte> write) =>
+    void sbc(InstructionContext ctx) =>
         throw new NotImplementedException();
     
     // Increment and Decrement
     
-    void inc(byte value, Action<byte> write) =>
+    void inc(InstructionContext ctx) =>
         throw new NotImplementedException();
     
-    void inx(byte value, Action<byte> write) =>
+    void inx(InstructionContext ctx) =>
         throw new NotImplementedException();
     
-    void iny(byte value, Action<byte> write) =>
+    void iny(InstructionContext ctx) =>
         throw new NotImplementedException();
     
-    void dec(byte value, Action<byte> write) =>
+    void dec(InstructionContext ctx) =>
         throw new NotImplementedException();
     
-    void dex(byte value, Action<byte> write) =>
+    void dex(InstructionContext ctx) =>
         throw new NotImplementedException();
     
-    void dey(byte value, Action<byte> write) =>
+    void dey(InstructionContext ctx) =>
         throw new NotImplementedException();
     
     // Shift and Rotate
     
-    void asl(byte value, Action<byte> write) =>
+    void asl(InstructionContext ctx) =>
         throw new NotImplementedException();
     
-    void lsr(byte value, Action<byte> write) =>
+    void lsr(InstructionContext ctx) =>
         throw new NotImplementedException();
     
-    void rol(byte value, Action<byte> write) =>
+    void rol(InstructionContext ctx) =>
         throw new NotImplementedException();
     
-    void ror(byte value, Action<byte> write) =>
+    void ror(InstructionContext ctx) =>
         throw new NotImplementedException();
     
     // Logic
     
-    void and(byte value, Action<byte> write) =>
+    void and(InstructionContext ctx) =>
         throw new NotImplementedException();
     
-    void ora(byte value, Action<byte> write) =>
+    void ora(InstructionContext ctx) =>
         throw new NotImplementedException();
     
-    void eor(byte value, Action<byte> write) =>
+    void eor(InstructionContext ctx) =>
         throw new NotImplementedException();
     
     // Compare and Test Bit
     
-    void cmp(byte value, Action<byte> write) =>
+    void cmp(InstructionContext ctx) =>
         throw new NotImplementedException();
     
-    void cpx(byte value, Action<byte> write) =>
+    void cpx(InstructionContext ctx) =>
         throw new NotImplementedException();
     
-    void cpy(byte value, Action<byte> write) =>
+    void cpy(InstructionContext ctx) =>
         throw new NotImplementedException();
     
-    void bit(byte value, Action<byte> write) =>
+    void bit(InstructionContext ctx) =>
         throw new NotImplementedException();
     
     // Branch
     
-    void bcc(byte value, Action<byte> write) =>
+    void bcc(InstructionContext ctx) =>
         throw new NotImplementedException();
     
-    void bcs(byte value, Action<byte> write) =>
+    void bcs(InstructionContext ctx) =>
         throw new NotImplementedException();
     
-    void bne(byte value, Action<byte> write) =>
+    void bne(InstructionContext ctx) =>
         throw new NotImplementedException();
     
-    void beq(byte value, Action<byte> write) =>
+    void beq(InstructionContext ctx) =>
         throw new NotImplementedException();
     
-    void bpl(byte value, Action<byte> write) =>
+    void bpl(InstructionContext ctx) =>
         throw new NotImplementedException();
     
-    void bmi(byte value, Action<byte> write) =>
+    void bmi(InstructionContext ctx) =>
         throw new NotImplementedException();
     
-    void bvc(byte value, Action<byte> write) =>
+    void bvc(InstructionContext ctx) =>
         throw new NotImplementedException();
     
-    void bvs(byte value, Action<byte> write) =>
+    void bvs(InstructionContext ctx) =>
         throw new NotImplementedException();
     
     // Transfer
     
-    void tax(byte value, Action<byte> write) =>
+    void tax(InstructionContext ctx) =>
         throw new NotImplementedException();
     
-    void txa(byte value, Action<byte> write) =>
+    void txa(InstructionContext ctx) =>
         throw new NotImplementedException();
     
-    void tay(byte value, Action<byte> write) =>
+    void tay(InstructionContext ctx) =>
         throw new NotImplementedException();
     
-    void tya(byte value, Action<byte> write) =>
+    void tya(InstructionContext ctx) =>
         throw new NotImplementedException();
     
-    void tsx(byte value, Action<byte> write) =>
+    void tsx(InstructionContext ctx) =>
         throw new NotImplementedException();
     
-    void txs(byte value, Action<byte> write) =>
+    void txs(InstructionContext ctx) =>
         throw new NotImplementedException();
     
     // Stack
     
-    void pha(byte value, Action<byte> write) =>
+    void pha(InstructionContext ctx) =>
         throw new NotImplementedException();
     
-    void pla(byte value, Action<byte> write) =>
+    void pla(InstructionContext ctx) =>
         throw new NotImplementedException();
     
-    void php(byte value, Action<byte> write) =>
+    void php(InstructionContext ctx) =>
         throw new NotImplementedException();
 
-    void plp(byte value, Action<byte> write) =>
+    void plp(InstructionContext ctx) =>
         throw new NotImplementedException();
     
     // Subroutines and Jump
     
-    void jmp(byte value, Action<byte> write) =>
+    void jmp(InstructionContext ctx) =>
         throw new NotImplementedException();
     
-    void jsr(byte value, Action<byte> write) =>
+    void jsr(InstructionContext ctx) =>
         throw new NotImplementedException();
     
-    void rts(byte value, Action<byte> write) =>
+    void rts(InstructionContext ctx) =>
         throw new NotImplementedException();
     
-    void rti(byte value, Action<byte> write) =>
+    void rti(InstructionContext ctx) =>
         throw new NotImplementedException();
     
     // Set and Clear
     
-    void clc(byte value, Action<byte> write) =>
+    void clc(InstructionContext ctx) =>
         throw new NotImplementedException();
     
-    void sec(byte value, Action<byte> write) =>
+    void sec(InstructionContext ctx) =>
         throw new NotImplementedException();
     
-    void cld(byte value, Action<byte> write) =>
+    void cld(InstructionContext ctx) =>
         throw new NotImplementedException();
     
-    void sed(byte value, Action<byte> write) =>
+    void sed(InstructionContext ctx) =>
         throw new NotImplementedException();
     
-    void cli(byte value, Action<byte> write) =>
+    void cli(InstructionContext ctx) =>
         throw new NotImplementedException();
     
-    void sei(byte value, Action<byte> write) =>
+    void sei(InstructionContext ctx) =>
         throw new NotImplementedException();
     
-    void clv(byte value, Action<byte> write) =>
+    void clv(InstructionContext ctx) =>
         throw new NotImplementedException();
     
     // Misc
     
-    void brk(byte value, Action<byte> write) =>
+    void brk(InstructionContext ctx) =>
         throw new NotImplementedException();
     
-    void nop(byte value, Action<byte> write) =>
+    void nop(InstructionContext ctx) =>
         throw new NotImplementedException();
 
-    void xxx(byte value, Action<byte> write) =>
+    void xxx(InstructionContext ctx) =>
         throw new Exception();
 
     // Constants
