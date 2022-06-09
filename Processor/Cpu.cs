@@ -114,8 +114,11 @@ public class Cpu
         (_memory.Read((ushort) (PC + 1)), _ => { });
   
     //Indirect
+    // JMP is the only instruction that uses this mode
+    // as a special case we let it handle things itself,
+    // since it requires both bytes of the argument
     private (byte, Action<byte>) IND() =>
-        throw new NotImplementedException();
+        (0, _ => { });
 
     private (byte, Action<byte>) AbsoluteIndexed(byte offset)
     {
