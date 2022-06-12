@@ -4,17 +4,27 @@ public class Cpu
 {
     private struct InstructionContext
     {
+        private Action<byte> _write;
+        private byte _value;
         public InstructionContext(byte value, ushort address, Action<byte> write)
         {
-            Value = value;
+            _value = value;
             Address = address;
-            Write = write;
+            _write = write;
         }
 
-        public byte Value { get; }
+        public byte Value
+        {
+            get => _value;
+            set
+            {
+                _value = value;
+                _write.Invoke(value);
+            }
+        }
         public ushort Address { get; }
-        public Action<byte> Write { get; }
-    }
+        
+}
     
     private readonly ICpuMemory _memory;
     private byte A;    // Аккумулятор
@@ -127,9 +137,8 @@ public class Cpu
         return _cycles - cycles;
     }
 
-    private void CheckPageCross(ushort frm, ushort to)
-        => throw new NotImplementedException();
-    
+    bool IsPageCross(ushort from, ushort to) => (from & 0xFF) != (to & 0xFF);
+
     // Addressing modes
     
     //Accumulator
@@ -167,7 +176,7 @@ public class Cpu
     {
         var address = _memory.Read16((ushort) (PC + 1));
         var newAddress = (ushort) (address + offset);
-        CheckPageCross(address, newAddress);
+        if (IsPageCross(address, newAddress)) _cycles++;
         return Addressed(newAddress);
     }
     //Absolute_x
@@ -198,7 +207,7 @@ public class Cpu
     {
         var address = _memory.Read16Wrap(_memory.Read((ushort) (PC + 1)));
         var newAddress = (ushort) (address + Y);
-        CheckPageCross(address, newAddress);
+        if (IsPageCross(address, newAddress)) _cycles++;
         return Addressed(newAddress);
     }
 
@@ -207,200 +216,278 @@ public class Cpu
         throw new Exception();
     
     // Instructions
+    void SetZN(byte value)
+    {
+        Z = value == 0;
+        N = ((value >> 7) & 1) == 1;
+    }
     
     // Load
-    
-    void lda(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
+
+    void lda(InstructionContext ctx)
+        => SetZN(A = ctx.Value);
+
     void ldx(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
+        SetZN(X = ctx.Value);
+
     void ldy(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
+        SetZN(Y = ctx.Value);
     // Store
-    
+
     void sta(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
+        ctx.Value = A;
+
     void stx(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
+        ctx.Value = X;
+
     void sty(InstructionContext ctx) =>
-        throw new NotImplementedException();
+        ctx.Value = Y;
     
     // Arithmetic
     
-    void adc(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
-    void sbc(InstructionContext ctx) =>
-        throw new NotImplementedException();
+    void adc(InstructionContext ctx)
+    {
+        var sum = A + ctx.Value + (C ? 1 : 0);
+        C = sum > 0xFF;
+        var result = (byte) sum;
+        V = (~(A ^ ctx.Value) & (A ^ result) & 0x80) != 0;
+        SetZN(A = result);
+    }
+
+    void sbc(InstructionContext ctx)
+    {
+        var diff = A - ctx.Value - (C ? 0 : 1);
+        C = diff >= 0;
+        var result = (byte) diff;
+        V = ((A ^ ctx.Value) & (A ^ result) & 0x80) != 0;
+        SetZN(A = result);
+    }
     
     // Increment and Decrement
-    
+
     void inc(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
+        SetZN(++ctx.Value);
+
     void inx(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
+        SetZN(++X);
+
     void iny(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
+        SetZN(++Y);
+
     void dec(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
+        SetZN(--ctx.Value);
+
     void dex(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
+        SetZN(--X);
+
     void dey(InstructionContext ctx) =>
-        throw new NotImplementedException();
+        SetZN(--Y);
     
     // Shift and Rotate
-    
-    void asl(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
-    void lsr(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
-    void rol(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
-    void ror(InstructionContext ctx) =>
-        throw new NotImplementedException();
+
+    void asl(InstructionContext ctx)
+    {
+        C = ((ctx.Value >> 7) & 1) == 1;
+        ctx.Value <<= 1;
+        SetZN(ctx.Value);
+    }
+
+    void lsr(InstructionContext ctx)
+    {
+        C = (ctx.Value & 1) == 1;
+        ctx.Value >>= 1;
+        SetZN(ctx.Value);
+    }
+
+    void rol(InstructionContext ctx)
+    {
+        var oldC = C;
+        C = ((ctx.Value >> 7) & 1) == 1;
+        ctx.Value = (byte) ((ctx.Value << 1) | (oldC ? 1 : 0));
+        SetZN(ctx.Value);
+    }
+
+    void ror(InstructionContext ctx)
+    {
+        var oldC = C;
+        C = (ctx.Value & 1) == 1;
+        ctx.Value = (byte) ((ctx.Value >> 1) | ((oldC ? 1 : 0) << 7));
+        SetZN(ctx.Value);
+    }
     
     // Logic
-    
+
     void and(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
+        SetZN(A &= ctx.Value);
+
     void ora(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
+        SetZN(A |= ctx.Value);
+
     void eor(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
+        SetZN(A ^= ctx.Value);
     // Compare and Test Bit
-    
+
+    void Compare(int diff)
+    {
+        N = diff < 0;
+        Z = diff == 0;
+        C = diff >= 0;
+    }
+
     void cmp(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
+        Compare(A - ctx.Value);
+
     void cpx(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
+        Compare(X - ctx.Value);
+
     void cpy(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
-    void bit(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
+        Compare(Y - ctx.Value);
+
+    void bit(InstructionContext ctx)
+    {
+        N = ((ctx.Value >> 7) & 1) == 1;
+        V = ((ctx.Value >> 6) & 1) == 1;
+        Z = (A & ctx.Value) == 0;
+    }
     // Branch
-    
+
+    void Branch(bool cond, byte offset)
+    {
+        if (!cond) return;
+        var newPC = (ushort) (PC + (sbyte) offset);
+        _cycles += 1 + (IsPageCross(PC, newPC) ? 1 : 0);
+        PC = newPC;
+    }
+
     void bcc(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
+        Branch(!C, ctx.Value);
+
     void bcs(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
+        Branch(C, ctx.Value);
+
     void bne(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
+        Branch(!Z, ctx.Value);
+
     void beq(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
+        Branch(Z, ctx.Value);
+
     void bpl(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
+        Branch(!N, ctx.Value);
+
     void bmi(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
+        Branch(N, ctx.Value);
+
     void bvc(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
+        Branch(!V, ctx.Value);
+
     void bvs(InstructionContext ctx) =>
-        throw new NotImplementedException();
+        Branch(V, ctx.Value);
     
     // Transfer
-    
+
     void tax(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
+        SetZN(X = A);
+
     void txa(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
+        SetZN(A = X);
+
     void tay(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
+        SetZN(Y = A);
+
     void tya(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
+        SetZN(A = Y);
+
     void tsx(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
+        SetZN(X = S);
+
     void txs(InstructionContext ctx) =>
-        throw new NotImplementedException();
+        SetZN(S = X);
     
     // Stack
-    
+    // TODO check this
+    void PushStack(byte value) =>
+        _memory.Write((ushort) (S-- | 0x100), value);
+
+    void PushStack16(ushort value)
+    {
+        _memory.Write16((ushort) (--S | 0x100), value);
+        S--;
+    }
+
+    byte PullStack() =>
+        _memory.Read((ushort) (++S | 0x100));
+
+    ushort PullStack16()
+    {
+        var value = _memory.Read16((ushort) (++S | 0x100));
+        S++;
+        return value;
+    }
+
     void pha(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
+        PushStack(A);
+
     void pla(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
+        SetZN(A = PullStack());
+
     void php(InstructionContext ctx) =>
-        throw new NotImplementedException();
+        PushStack(P);
 
     void plp(InstructionContext ctx) =>
-        throw new NotImplementedException();
+        P = PullStack();
     
     // Subroutines and Jump
     
     void jmp(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
-    void jsr(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
+        PC = _memory.Read16(ctx.Address);
+
+    void jsr(InstructionContext ctx)
+    {
+        PushStack16((ushort) (PC - 1));
+        PC = _memory.Read16(ctx.Address);
+    }
+
     void rts(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
-    void rti(InstructionContext ctx) =>
-        throw new NotImplementedException();
+        PC = (ushort) (PullStack16() + 1);
+
+    void rti(InstructionContext ctx)
+    {
+        S = PullStack();
+        PC = PullStack16();
+    }
     
     // Set and Clear
-    
+
     void clc(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
+        C = false;
+
     void sec(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
+        C = true;
+
     void cld(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
+        D = false;
+
     void sed(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
+        D = true;
+
     void cli(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
+        I = false;
+
     void sei(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
+        I = true;
+
     void clv(InstructionContext ctx) =>
-        throw new NotImplementedException();
+        V = false;
     
     // Misc
+
+    void brk(InstructionContext ctx)
+    {
+        B = true;
+        I = true;
+    }
     
-    void brk(InstructionContext ctx) =>
-        throw new NotImplementedException();
-    
-    void nop(InstructionContext ctx) =>
-        throw new NotImplementedException();
+    void nop(InstructionContext ctx) { }
 
     void xxx(InstructionContext ctx) =>
         throw new Exception();
@@ -470,6 +557,24 @@ public class Cpu
             REL, IND_Y, XXX, XXX, XXX,  ZP_X, ZP_X, XXX, IMP, ABS_Y, XXX, XXX, XXX,   ABS_X, ABS_X, XXX, // F
         };
 
-    private Instruction[] InitInstructions() =>
-        throw new NotImplementedException();
+    private Instruction[] InitInstructions() => new Instruction[]
+    {
+        //  0    1    2    3    4    5    6    7    8    9    A    B    C    D    E    F
+        brk, ora, xxx, xxx, xxx, ora, asl, xxx, php, ora, asl, xxx, xxx, ora, asl, xxx, // 0
+        bpl, ora, xxx, xxx, xxx, ora, asl, xxx, clc, ora, xxx, xxx, xxx, ora, asl, xxx, // 1
+        jsr, and, xxx, xxx, bit, and, rol, xxx, plp, and, rol, xxx, bit, and, rol, xxx, // 2
+        bmi, and, xxx, xxx, xxx, and, rol, xxx, sec, and, xxx, xxx, xxx, and, rol, xxx, // 3
+        rti, eor, xxx, xxx, xxx, eor, lsr, xxx, pha, eor, lsr, xxx, jmp, eor, lsr, xxx, // 4
+        bvc, eor, xxx, xxx, xxx, eor, lsr, xxx, cli, eor, xxx, xxx, xxx, eor, lsr, xxx, // 5
+        rts, adc, xxx, xxx, xxx, adc, ror, xxx, pla, adc, ror, xxx, jmp, adc, ror, xxx, // 6
+        bvs, adc, xxx, xxx, xxx, adc, ror, xxx, sei, adc, xxx, xxx, xxx, adc, ror, xxx, // 7
+        xxx, sta, xxx, xxx, sty, sta, stx, xxx, dey, xxx, txa, xxx, sty, sta, stx, xxx, // 8
+        bcc, sta, xxx, xxx, sty, sta, stx, xxx, tya, sta, txs, xxx, xxx, sta, xxx, xxx, // 9
+        ldy, lda, ldx, xxx, ldy, lda, ldx, xxx, tay, lda, tax, xxx, ldy, lda, ldx, xxx, // A
+        bcs, lda, xxx, xxx, ldy, lda, ldx, xxx, clv, lda, tsx, xxx, ldy, lda, ldx, xxx, // B
+        cpy, cmp, xxx, xxx, cpy, cmp, dec, xxx, iny, cmp, dex, xxx, cpy, cmp, dec, xxx, // C
+        bne, cmp, xxx, xxx, xxx, cmp, dec, xxx, cld, cmp, xxx, xxx, xxx, cmp, dec, xxx, // D
+        cpx, sbc, xxx, xxx, cpx, sbc, inc, xxx, inx, sbc, nop, xxx, cpx, sbc, inc, xxx, // E
+        beq, sbc, xxx, xxx, xxx, sbc, inc, xxx, sed, sbc, xxx, xxx, xxx, sbc, inc, xxx  // F
+    };
 }
