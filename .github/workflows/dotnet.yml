@@ -25,3 +25,5 @@ jobs:
       run: dotnet build --no-restore
     - name: Test
       run: dotnet test --no-build --verbosity normal
+    - name: Run UnitTests
+      run: ./NUnit.ConsoleRunner.3.15.0/tools/nunit3-console.exe  /home/runner/work/Processor/Processor/Processor/bin/Debug/net6.0/Processor.dll
