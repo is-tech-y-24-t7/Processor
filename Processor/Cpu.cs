@@ -83,7 +83,8 @@ public class Cpu
         _memory = memory;
         Reset();
     }
-
+    
+    // Interruotions
     public void Reset()
     {
         A = 0;
@@ -92,6 +93,29 @@ public class Cpu
         S = 0xFD;
         P = 0x34;
         PC = _memory.Read16(0xFFFC);
+    }
+
+    private void InterruptSteps()
+    {
+        PushStack16(PC);
+        B = false;
+        I = true;
+        PushStack(P);
+    }
+    
+    public void IRQ()
+    {
+        if (!I)
+        {
+            InterruptSteps();
+            PC = _memory.Read16(0xFFFE);
+        }
+    }
+
+    public void NMI()
+    {
+        InterruptSteps();
+        PC = _memory.Read16(0xFFFA);
     }
 
     public int Step()
