@@ -94,35 +94,27 @@ public class Cpu
         P = 0x34;
         PC = _memory.Read16(0xFFFC);
     }
+
+    private void InterruptSteps()
+    {
+        PushStack16(PC);
+        B = false;
+        I = true;
+        PushStack(P);
+    }
     
     public void IRQ()
     {
         if (!I)
         {
-            _memory.Write((ushort)(0x0100 | S), (byte)((PC >> 8) & 0x00FF));
-            S--;
-            _memory.Write((ushort)(0x0100 + S), (byte)(PC & 0x00FF));
-            S--;
-            
-            B = false;
-            I = true;
-            _memory.Write((ushort)(0x0100 + S), P);
-            S--;
+            InterruptSteps();
             PC = _memory.Read16(0xFFFE);
         }
     }
 
     public void NMI()
     {
-        _memory.Write((ushort)(0x0100 + S), (byte)((PC >> 8) & 0x00FF));
-        S--;
-        _memory.Write((ushort)(0x0100 + S), (byte)(PC & 0x00FF));
-        S--;
-            
-        B = false;
-        I = true;
-        _memory.Write((ushort)(0x0100 + S), P);
-        S--;
+        InterruptSteps();
         PC = _memory.Read16(0xFFFA);
     }
 
