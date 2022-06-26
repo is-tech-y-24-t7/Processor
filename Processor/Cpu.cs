@@ -48,6 +48,7 @@ public class Cpu
     private readonly Instruction[] _instructions;
 
     private int _cycles;
+    private int _idle;
 
     private bool irqInterrupt;
     private bool nmiInterrupt;
@@ -94,8 +95,12 @@ public class Cpu
         X = 0;
         Y = 0;
         S = 0xFD;
-        P = 0x34;
+        P = 0x24;
         PC = _memory.Read16(0xFFFC);
+
+        nmiInterrupt = false;
+        _idle = 0;
+        _cycles = 0;
     }
 
     private void InterruptSteps()
@@ -144,7 +149,12 @@ public class Cpu
             NMI();
             nmiInterrupt = false;
         }
-        var cycles = _cycles;
+
+        if (_idle-- > 0)
+        {
+            return 1;
+        }
+            var cycles = _cycles;
         var opCode = _memory.Read(PC);
         var ctx = _addressModes[opCode]();
         PC += _instructionBytes[opCode];
@@ -153,6 +163,10 @@ public class Cpu
         return _cycles - cycles;
     }
 
+    public void AddIdleCycles(int value)
+    {
+        _idle += value;
+    }
     bool IsPageCross(ushort from, ushort to) => (from & 0xFF) != (to & 0xFF);
 
     // Addressing modes
