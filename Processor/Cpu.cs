@@ -28,8 +28,8 @@ public class Cpu
     
     private readonly ICpuMemory _memory;
     private byte A;    // Аккумулятор
-    private byte X;    //Индекс X 
-    private byte Y;    //Индекс Y
+    private byte X;    // Индекс X 
+    private byte Y;    // Индекс Y
     private ushort PC; // Cчетчик команд, 2 байта
     private byte S;    // Указатель вершины стека
     
@@ -48,6 +48,9 @@ public class Cpu
     private readonly Instruction[] _instructions;
 
     private int _cycles;
+
+    private bool irqInterrupt;
+    private bool nmiInterrupt;
 
     private byte P
     {
@@ -84,7 +87,7 @@ public class Cpu
         Reset();
     }
     
-    // Interruotions
+    // Interruptions
     public void Reset()
     {
         A = 0;
@@ -103,7 +106,7 @@ public class Cpu
         PushStack(P);
     }
     
-    public void IRQ()
+    private void IRQ()
     {
         if (!I)
         {
@@ -112,14 +115,35 @@ public class Cpu
         }
     }
 
-    public void NMI()
+    private  void NMI()
     {
         InterruptSteps();
         PC = _memory.Read16(0xFFFA);
     }
 
+    public void TriggerIRQ()
+    {
+        irqInterrupt = true;
+    }
+    
+    public void TriggerNMI()
+    {
+        nmiInterrupt = true;
+    }
+
     public int Step()
     {
+        if (irqInterrupt)
+        {
+            IRQ();
+            irqInterrupt = false;
+        }
+
+        if (nmiInterrupt)
+        {
+            NMI();
+            nmiInterrupt = false;
+        }
         var cycles = _cycles;
         var opCode = _memory.Read(PC);
         var ctx = _addressModes[opCode]();
