@@ -1,38 +1,52 @@
-﻿namespace Processor;
-
-public class Controller
+﻿namespace Processor
 {
-    private bool[] _buttonStates;
-    private bool _strobe;
-    private int _currentButton;
-    public Controller()
+    public class Controller
     {
-        _buttonStates = new bool[8];
-        _strobe = false;
-        _currentButton = 0;
-    }
-    public void setButtonState(Button button, bool state)
-    {
-        _buttonStates[(int)button] = state;
-    }
-    
-    public void WriteControllerInput(byte input)
-    {
-        _strobe = (input & 1) != 0;
-        if (_strobe) 
+        private bool[] _buttonStates;
+        private bool _strobe;
+        private int _currentButton;
+        public enum Button
+        {
+            A = 0,
+            B,
+            Select,
+            Start,
+            Up,
+            Down,
+            Left,
+            Right
+        };
+        public Controller()
+        {
+            _buttonStates = new bool[8];
+            _strobe = false;
             _currentButton = 0;
-    }
-    
-    public void SetButtonState(Button button, bool state)
-    {
-        _buttonStates[(int)button] = state;
-    }
-    
-    public byte ReadControllerOutput()
-    {
-        if (!_strobe)
-            _currentButton++;
+        }
+        
+        public void WriteControllerInput(byte input)
+        {
+            _strobe = (input & 1) != 0;
+            if (_strobe) 
+                _currentButton = 0;
+        }
+        
+        public void SetButtonState(Button button, bool state)
+        {
+            _buttonStates[(int)button] = state;
+        }
+        
+        public byte ReadControllerOutput()
+        {
+            if (_currentButton > 7) 
+                return 1;
 
-        return (byte)(_buttonStates[_currentButton] ? 1 : 0);
+            byte state = (byte)(_buttonStates[_currentButton] ? 1 : 0);
+
+            if (!_strobe)
+                _currentButton++;
+
+            return state;
+        }
     }
+
 }

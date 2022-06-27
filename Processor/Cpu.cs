@@ -1,610 +1,796 @@
-namespace Processor;
+using System;
+using MemoryService;
+using Console = System.Console;
 
-public class Cpu
+namespace Processor
 {
-    private struct InstructionContext
+    public class Cpu
     {
-        private Action<byte> _write;
-        private byte _value;
-        public InstructionContext(byte value, ushort address, Action<byte> write)
+        enum AddressMode
         {
-            _value = value;
-            Address = address;
-            _write = write;
-        }
-
-        public byte Value
-        {
-            get => _value;
-            set
-            {
-                _value = value;
-                _write.Invoke(value);
-            }
-        }
-        public ushort Address { get; }
-        
-}
-    
-    private readonly ICpuMemory _memory;
-    private byte A;    // –ê–∫–∫—É–º—É–ª—è—Ç–æ—Ä
-    private byte X;    // –ò–Ω–¥–µ–∫—Å X 
-    private byte Y;    // –ò–Ω–¥–µ–∫—Å Y
-    private ushort PC; // C—á–µ—Ç—á–∏–∫ –∫–æ–º–∞–Ω–¥, 2 –±–∞–π—Ç–∞
-    private byte S;    // –£–∫–∞–∑–∞—Ç–µ–ª—å –≤–µ—Ä—à–∏–Ω—ã —Å—Ç–µ–∫–∞
-    
-    // (P) –†–µ–≥–∏—Å—Ç—Ä —Å—Ç–∞—Ç—É—Å–∞ –¥–ª–∏–Ω–æ–π 1 –±–∞–π—Ç, —Ä–∞–∑–±–∏—Ç –Ω–∞ 8 –±–∏—Ç–æ–≤
-    private bool C; //Carry flag
-    private bool Z; // Zero flag
-    private bool I; // Interrpt Disable
-    private bool D; // Decimal Flag
-    private bool B; // Break command
-    private bool V; // Overflow flag
-    private bool N; // Negative flag
-    private delegate InstructionContext AddressMode();
-    private readonly AddressMode[] _addressModes;
-
-    private delegate void Instruction(InstructionContext ctx);
-    private readonly Instruction[] _instructions;
-
-    private int _cycles;
-    private int _idle;
-
-    private bool irqInterrupt;
-    private bool nmiInterrupt;
-
-    private byte P
-    {
-        get
-        {
-            byte value = 0;
-            if (C) value |= 1 << 0;
-            if (Z) value |= 1 << 1;
-            if (I) value |= 1 << 2;
-            if (D) value |= 1 << 3;
-            if (B) value |= 1 << 4;
-            value |= 1 << 5;
-            if (V) value |= 1 << 6;
-            if (N) value |= 1 << 7;
-            return value;
-        }
-        set
-        {
-            C = (value & 1<<0 ) != 0 ;
-            Z = (value & 1<<1) != 0;
-            I = (value & 1<<2) != 0;
-            D = (value & 1<<3) != 0;
-            B = (value & 1<<4) != 0;
-            V = (value & 1<<6) != 0;
-            N = (value & 1<<7) != 0;
-        }
-    }
-
-    public Cpu(ICpuMemory memory)
-    {
-        _addressModes = InitAddressModes();
-        _instructions = InitInstructions();
-        _memory = memory;
-        Reset();
-    }
-    
-    // Interruptions
-    public void Reset()
-    {
-        A = 0;
-        X = 0;
-        Y = 0;
-        S = 0xFD;
-        P = 0x24;
-        PC = _memory.Read16(0xFFFC);
-
-        nmiInterrupt = false;
-        _idle = 0;
-        _cycles = 0;
-    }
-
-    private void InterruptSteps()
-    {
-        PushStack16(PC);
-        B = false;
-        I = true;
-        PushStack(P);
-    }
-    
-    private void IRQ()
-    {
-        if (!I)
-        {
-            InterruptSteps();
-            PC = _memory.Read16(0xFFFE);
-        }
-    }
-
-    private  void NMI()
-    {
-        InterruptSteps();
-        PC = _memory.Read16(0xFFFA);
-    }
-
-    public void TriggerIRQ()
-    {
-        irqInterrupt = true;
-    }
-    
-    public void TriggerNMI()
-    {
-        nmiInterrupt = true;
-    }
-
-    public int Step()
-    {
-        if (irqInterrupt)
-        {
-            IRQ();
-            irqInterrupt = false;
-        }
-
-        if (nmiInterrupt)
-        {
-            NMI();
-            nmiInterrupt = false;
-        }
-
-        if (_idle-- > 0)
-        {
-            return 1;
-        }
-            var cycles = _cycles;
-        var opCode = _memory.Read(PC);
-        var ctx = _addressModes[opCode]();
-        PC += _instructionBytes[opCode];
-        _cycles += _instructionCycles[opCode];
-        _instructions[opCode](ctx);
-        return _cycles - cycles;
-    }
-
-    public void AddIdleCycles(int value)
-    {
-        _idle += value;
-    }
-    bool IsPageCross(ushort from, ushort to) => (from & 0xFF) != (to & 0xFF);
-
-    // Addressing modes
-    
-    //Accumulator
-    private InstructionContext ACC() =>
-        new (A, 0, value => A = value);
-
-    //Implied
-    private static InstructionContext IMP() =>
-        new (0, 0, _ => { });
-    
-    private InstructionContext Addressed(ushort address) =>
-        new(_memory.Read(address), address, value => _memory.Write(address, value));
-    
-    //Immediate
-    private InstructionContext IMM() =>
-        Addressed((ushort) (PC + 1));
-
-    //Absolute
-    private InstructionContext ABS() =>
-        Addressed(_memory.Read16((ushort) (PC + 1)));
-
-    //Zeropage
-    private InstructionContext ZP() =>
-        Addressed(_memory.Read((ushort) (PC + 1)));
-
-    //Relative
-    private InstructionContext REL() =>
-        new (_memory.Read((ushort) (PC + 1)), 0, _ => { });
-  
-    //Indirect
-    private InstructionContext IND() =>
-        Addressed(_memory.Read16Wrap(_memory.Read16((ushort) (PC + 1))));
-
-    private InstructionContext AbsoluteIndexed(byte offset)
-    {
-        var address = _memory.Read16((ushort) (PC + 1));
-        var newAddress = (ushort) (address + offset);
-        if (IsPageCross(address, newAddress)) _cycles++;
-        return Addressed(newAddress);
-    }
-    //Absolute_x
-    private InstructionContext ABS_X() =>
-        AbsoluteIndexed(X);
-
-    //Absolute_y
-    private InstructionContext ABS_Y() =>
-        AbsoluteIndexed(Y);
-    
-    private InstructionContext ZeroPageIndexed(byte offset) =>
-        Addressed((ushort) ((_memory.Read((ushort) (PC + 1)) + offset) & 0xFF));
-    
-    //Zeropage_x
-    private InstructionContext ZP_X() =>
-        ZeroPageIndexed(X);
-    
-    //Zeropage_y
-    private InstructionContext ZP_Y() =>
-        ZeroPageIndexed(Y);
-    
-    //Indirect_x
-    private InstructionContext IND_X() =>
-        Addressed(_memory.Read16Wrap((ushort) ((_memory.Read((ushort) (PC + 1)) + X) & 0xFF)));
-    
-    //Indirect_y
-    private InstructionContext IND_Y()
-    {
-        var address = _memory.Read16Wrap(_memory.Read((ushort) (PC + 1)));
-        var newAddress = (ushort) (address + Y);
-        if (IsPageCross(address, newAddress)) _cycles++;
-        return Addressed(newAddress);
-    }
-
-    //Invalid opcode
-    private InstructionContext XXX() =>
-        throw new Exception();
-    
-    // Instructions
-    void SetZN(byte value)
-    {
-        Z = value == 0;
-        N = ((value >> 7) & 1) == 1;
-    }
-    
-    // Load
-
-    void lda(InstructionContext ctx)
-        => SetZN(A = ctx.Value);
-
-    void ldx(InstructionContext ctx) =>
-        SetZN(X = ctx.Value);
-
-    void ldy(InstructionContext ctx) =>
-        SetZN(Y = ctx.Value);
-    // Store
-
-    void sta(InstructionContext ctx) =>
-        ctx.Value = A;
-
-    void stx(InstructionContext ctx) =>
-        ctx.Value = X;
-
-    void sty(InstructionContext ctx) =>
-        ctx.Value = Y;
-    
-    // Arithmetic
-    
-    void adc(InstructionContext ctx)
-    {
-        var sum = A + ctx.Value + (C ? 1 : 0);
-        C = sum > 0xFF;
-        var result = (byte) sum;
-        V = (~(A ^ ctx.Value) & (A ^ result) & 0x80) != 0;
-        SetZN(A = result);
-    }
-
-    void sbc(InstructionContext ctx)
-    {
-        var diff = A - ctx.Value - (C ? 0 : 1);
-        C = diff >= 0;
-        var result = (byte) diff;
-        V = ((A ^ ctx.Value) & (A ^ result) & 0x80) != 0;
-        SetZN(A = result);
-    }
-    
-    // Increment and Decrement
-
-    void inc(InstructionContext ctx) =>
-        SetZN(++ctx.Value);
-
-    void inx(InstructionContext ctx) =>
-        SetZN(++X);
-
-    void iny(InstructionContext ctx) =>
-        SetZN(++Y);
-
-    void dec(InstructionContext ctx) =>
-        SetZN(--ctx.Value);
-
-    void dex(InstructionContext ctx) =>
-        SetZN(--X);
-
-    void dey(InstructionContext ctx) =>
-        SetZN(--Y);
-    
-    // Shift and Rotate
-
-    void asl(InstructionContext ctx)
-    {
-        C = ((ctx.Value >> 7) & 1) == 1;
-        ctx.Value <<= 1;
-        SetZN(ctx.Value);
-    }
-
-    void lsr(InstructionContext ctx)
-    {
-        C = (ctx.Value & 1) == 1;
-        ctx.Value >>= 1;
-        SetZN(ctx.Value);
-    }
-
-    void rol(InstructionContext ctx)
-    {
-        var oldC = C;
-        C = ((ctx.Value >> 7) & 1) == 1;
-        ctx.Value = (byte) ((ctx.Value << 1) | (oldC ? 1 : 0));
-        SetZN(ctx.Value);
-    }
-
-    void ror(InstructionContext ctx)
-    {
-        var oldC = C;
-        C = (ctx.Value & 1) == 1;
-        ctx.Value = (byte) ((ctx.Value >> 1) | ((oldC ? 1 : 0) << 7));
-        SetZN(ctx.Value);
-    }
-    
-    // Logic
-
-    void and(InstructionContext ctx) =>
-        SetZN(A &= ctx.Value);
-
-    void ora(InstructionContext ctx) =>
-        SetZN(A |= ctx.Value);
-
-    void eor(InstructionContext ctx) =>
-        SetZN(A ^= ctx.Value);
-    // Compare and Test Bit
-
-    void Compare(int diff)
-    {
-        N = diff < 0;
-        Z = diff == 0;
-        C = diff >= 0;
-    }
-
-    void cmp(InstructionContext ctx) =>
-        Compare(A - ctx.Value);
-
-    void cpx(InstructionContext ctx) =>
-        Compare(X - ctx.Value);
-
-    void cpy(InstructionContext ctx) =>
-        Compare(Y - ctx.Value);
-
-    void bit(InstructionContext ctx)
-    {
-        N = ((ctx.Value >> 7) & 1) == 1;
-        V = ((ctx.Value >> 6) & 1) == 1;
-        Z = (A & ctx.Value) == 0;
-    }
-    // Branch
-
-    void Branch(bool cond, byte offset)
-    {
-        if (!cond) return;
-        var newPC = (ushort) (PC + (sbyte) offset);
-        _cycles += 1 + (IsPageCross(PC, newPC) ? 1 : 0);
-        PC = newPC;
-    }
-
-    void bcc(InstructionContext ctx) =>
-        Branch(!C, ctx.Value);
-
-    void bcs(InstructionContext ctx) =>
-        Branch(C, ctx.Value);
-
-    void bne(InstructionContext ctx) =>
-        Branch(!Z, ctx.Value);
-
-    void beq(InstructionContext ctx) =>
-        Branch(Z, ctx.Value);
-
-    void bpl(InstructionContext ctx) =>
-        Branch(!N, ctx.Value);
-
-    void bmi(InstructionContext ctx) =>
-        Branch(N, ctx.Value);
-
-    void bvc(InstructionContext ctx) =>
-        Branch(!V, ctx.Value);
-
-    void bvs(InstructionContext ctx) =>
-        Branch(V, ctx.Value);
-    
-    // Transfer
-
-    void tax(InstructionContext ctx) =>
-        SetZN(X = A);
-
-    void txa(InstructionContext ctx) =>
-        SetZN(A = X);
-
-    void tay(InstructionContext ctx) =>
-        SetZN(Y = A);
-
-    void tya(InstructionContext ctx) =>
-        SetZN(A = Y);
-
-    void tsx(InstructionContext ctx) =>
-        SetZN(X = S);
-
-    void txs(InstructionContext ctx) =>
-        SetZN(S = X);
-    
-    // Stack
-    // TODO check this
-    void PushStack(byte value) =>
-        _memory.Write((ushort) (S-- | 0x100), value);
-
-    void PushStack16(ushort value)
-    {
-        _memory.Write16((ushort) (--S | 0x100), value);
-        S--;
-    }
-
-    byte PullStack() =>
-        _memory.Read((ushort) (++S | 0x100));
-
-    ushort PullStack16()
-    {
-        var value = _memory.Read16((ushort) (++S | 0x100));
-        S++;
-        return value;
-    }
-
-    void pha(InstructionContext ctx) =>
-        PushStack(A);
-
-    void pla(InstructionContext ctx) =>
-        SetZN(A = PullStack());
-
-    void php(InstructionContext ctx) =>
-        PushStack(P);
-
-    void plp(InstructionContext ctx) =>
-        P = PullStack();
-    
-    // Subroutines and Jump
-    
-    void jmp(InstructionContext ctx) =>
-        PC = _memory.Read16(ctx.Address);
-
-    void jsr(InstructionContext ctx)
-    {
-        PushStack16((ushort) (PC - 1));
-        PC = _memory.Read16(ctx.Address);
-    }
-
-    void rts(InstructionContext ctx) =>
-        PC = (ushort) (PullStack16() + 1);
-
-    void rti(InstructionContext ctx)
-    {
-        S = PullStack();
-        PC = PullStack16();
-    }
-    
-    // Set and Clear
-
-    void clc(InstructionContext ctx) =>
-        C = false;
-
-    void sec(InstructionContext ctx) =>
-        C = true;
-
-    void cld(InstructionContext ctx) =>
-        D = false;
-
-    void sed(InstructionContext ctx) =>
-        D = true;
-
-    void cli(InstructionContext ctx) =>
-        I = false;
-
-    void sei(InstructionContext ctx) =>
-        I = true;
-
-    void clv(InstructionContext ctx) =>
-        V = false;
-    
-    // Misc
-
-    void brk(InstructionContext ctx)
-    {
-        B = true;
-        I = true;
-    }
-    
-    void nop(InstructionContext ctx) { }
-
-    void xxx(InstructionContext ctx) =>
-        throw new Exception();
-
-    // Constants
-    
-    private readonly byte[] _instructionBytes =
-    {
-    //  0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F
-        1, 2, 0, 0, 0, 2, 2, 0, 1, 2, 1, 0, 0, 3, 3, 0, // 0
-        2, 2, 0, 0, 0, 2, 2, 0, 1, 3, 0, 0, 0, 3, 3, 0, // 1
-        3, 2, 0, 0, 2, 2, 2, 0, 1, 2, 1, 0, 3, 3, 3, 0, // 2
-        2, 2, 0, 0, 0, 2, 2, 0, 1, 3, 0, 0, 0, 3, 3, 0, // 3
-        1, 2, 0, 0, 0, 2, 2, 0, 1, 2, 1, 0, 3, 3, 3, 0, // 4
-        2, 2, 0, 0, 0, 2, 2, 0, 1, 3, 0, 0, 0, 3, 3, 0, // 5
-        1, 2, 0, 0, 0, 2, 2, 0, 1, 2, 1, 0, 3, 3, 3, 0, // 6
-        2, 2, 0, 0, 0, 2, 2, 0, 1, 3, 0, 0, 0, 3, 3, 0, // 7
-        0, 2, 0, 0, 2, 2, 2, 0, 1, 0, 1, 0, 3, 3, 3, 0, // 8
-        2, 2, 0, 0, 2, 2, 2, 0, 1, 3, 1, 0, 0, 3, 0, 0, // 9
-        2, 2, 2, 0, 2, 2, 2, 0, 1, 2, 1, 0, 3, 3, 3, 0, // A
-        2, 2, 0, 0, 2, 2, 2, 0, 1, 3, 1, 0, 3, 3, 3, 0, // B
-        2, 2, 0, 0, 2, 2, 2, 0, 1, 2, 1, 0, 3, 3, 3, 0, // C
-        2, 2, 0, 0, 0, 2, 2, 0, 1, 3, 0, 0, 0, 3, 3, 0, // D
-        2, 2, 0, 0, 2, 2, 2, 0, 1, 2, 1, 0, 3, 3, 3, 0, // E
-        2, 2, 0, 0, 0, 2, 2, 0, 1, 3, 0, 0, 0, 3, 3, 0, // F
-    };
-        
-    private readonly byte[] _instructionCycles =
-    { 
-    //  0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F    
-        7, 6, 0, 0, 0, 3, 5, 0, 3, 2, 2, 0, 0, 4, 6, 0, // 0
-        2, 5, 0, 0, 0, 4, 6, 0, 2, 4, 0, 0, 0, 4, 7, 0, // 1
-        6, 6, 0, 0, 3, 3, 5, 0, 4, 2, 2, 0, 4, 4, 6, 0, // 2
-        2, 5, 0, 0, 0, 4, 6, 0, 2, 4, 0, 0, 0, 4, 7, 0, // 3
-        6, 6, 0, 0, 0, 3, 5, 0, 3, 2, 2, 0, 3, 4, 6, 0, // 4
-        2, 5, 0, 0, 0, 4, 6, 0, 2, 4, 0, 0, 0, 4, 7, 0, // 5
-        6, 6, 0, 0, 0, 3, 5, 0, 4, 2, 2, 0, 5, 4, 6, 0, // 6
-        2, 5, 0, 0, 0, 4, 6, 0, 2, 4, 0, 0, 0, 4, 7, 0, // 7
-        0, 6, 0, 0, 3, 3, 3, 0, 2, 0, 2, 0, 4, 4, 4, 0, // 8
-        2, 6, 0, 0, 4, 4, 4, 0, 2, 5, 2, 0, 0, 5, 0, 0, // 9
-        2, 6, 2, 0, 3, 3, 3, 0, 2, 2, 2, 0, 4, 4, 4, 0, // A
-        2, 5, 0, 0, 4, 4, 4, 0, 2, 4, 2, 0, 4, 4, 4, 0, // B
-        2, 6, 0, 0, 3, 3, 5, 0, 2, 2, 2, 0, 4, 4, 6, 0, // C
-        2, 5, 0, 0, 0, 4, 6, 0, 2, 4, 0, 0, 0, 4, 7, 0, // D
-        2, 6, 0, 0, 3, 3, 5, 0, 2, 2, 2, 0, 4, 4, 6, 0, // E
-        2, 5, 0, 0, 0, 4, 6, 0, 2, 4, 0, 0, 0, 4, 7, 0, // F
-    };
-
-    private AddressMode[] InitAddressModes() =>
-        new AddressMode[] { 
-        //  0    1      2    3    4     5     6     7    8    9      A    B    C      D      E      F   
-            IMP, IND_X, XXX, XXX, XXX,  ZP,   ZP,   XXX, IMP, IMM,   ACC, XXX, XXX,   ABS,   ABS,   XXX, // 0  
-            REL, IND_Y, XXX, XXX, XXX,  ZP_X, ZP_X, XXX, IMP, ABS_Y, XXX, XXX, XXX,   ABS_X, ABS_X, XXX, // 1  
-            ABS, IND_X, XXX, XXX, ZP,   ZP,   ZP,   XXX, IMP, IMM,   ACC, XXX, ABS,   ABS,   ABS,   XXX, // 2  
-            REL, IND_Y, XXX, XXX, XXX,  ZP_X, ZP_X, XXX, IMP, ABS_Y, XXX, XXX, XXX,   ABS_X, ABS_X, XXX, // 3  
-            IMP, IND_X, XXX, XXX, XXX,  ZP,   ZP,   XXX, IMP, IMM,   ACC, XXX, ABS,   ABS,   ABS,   XXX, // 4  
-            REL, IND_Y, XXX, XXX, XXX,  ZP_X, ZP_X, XXX, IMP, ABS_Y, XXX, XXX, XXX,   ABS_X, ABS_X, XXX, // 5  
-            IMP, IND_X, XXX, XXX, XXX,  ZP,   ZP,   XXX, IMP, IMM,   ACC, XXX, IND,   ABS,   ABS,   XXX, // 6  
-            REL, IND_Y, XXX, XXX, XXX,  ZP_X, ZP_X, XXX, IMP, ABS_Y, XXX, XXX, XXX,   ABS_X, ABS_X, XXX, // 7  
-            XXX, IND_X, XXX, XXX, ZP,   ZP,   ZP,   XXX, IMP, XXX,   IMP, XXX, ABS,   ABS,   ABS,   XXX, // 8  
-            REL, IND_Y, XXX, XXX, ZP_X, ZP_X, ZP_Y, XXX, IMP, ABS_Y, IMP, XXX, XXX,   ABS_X, XXX,   XXX, // 9  
-            IMM, IND_X, IMM, XXX, ZP,   ZP,   ZP,   XXX, IMP, IMM,   IMP, XXX, ABS,   ABS,   ABS,   XXX, // A  
-            REL, IND_Y, XXX, XXX, ZP_X, ZP_X, ZP_Y, XXX, IMP, ABS_Y, IMP, XXX, ABS_X, ABS_X, ABS_Y, XXX, // B  
-            IMM, IND_X, XXX, XXX, ZP,   ZP,   ZP,   XXX, IMP, IMM,   IMP, XXX, ABS,   ABS,   ABS,   XXX, // C  
-            REL, IND_Y, XXX, XXX, XXX,  ZP_X, ZP_X, XXX, IMP, ABS_Y, XXX, XXX, XXX,   ABS_X, ABS_X, XXX, // D  
-            IMM, IND_X, XXX, XXX, ZP,   ZP,   ZP,   XXX, IMP, IMM,   IMP, XXX, ABS,   ABS,   ABS,   XXX, // E  
-            REL, IND_Y, XXX, XXX, XXX,  ZP_X, ZP_X, XXX, IMP, ABS_Y, XXX, XXX, XXX,   ABS_X, ABS_X, XXX, // F
+            Absolute = 1, // 1
+            AbsoluteX, // 2
+            AbsoluteY, // 3
+            Accumulator, // 4
+            Immediate, // 5
+            Implied, // 6
+            IndexedIndirect, // 7
+            Indirect, // 8
+            IndirectIndexed, // 9
+            Relative, // 10
+            ZeroPage, // 11
+            ZeroPageX, // 12
+            ZeroPageY // 13
         };
 
-    private Instruction[] InitInstructions() => new Instruction[]
-    {
-        //  0    1    2    3    4    5    6    7    8    9    A    B    C    D    E    F
-        brk, ora, xxx, xxx, xxx, ora, asl, xxx, php, ora, asl, xxx, xxx, ora, asl, xxx, // 0
-        bpl, ora, xxx, xxx, xxx, ora, asl, xxx, clc, ora, xxx, xxx, xxx, ora, asl, xxx, // 1
-        jsr, and, xxx, xxx, bit, and, rol, xxx, plp, and, rol, xxx, bit, and, rol, xxx, // 2
-        bmi, and, xxx, xxx, xxx, and, rol, xxx, sec, and, xxx, xxx, xxx, and, rol, xxx, // 3
-        rti, eor, xxx, xxx, xxx, eor, lsr, xxx, pha, eor, lsr, xxx, jmp, eor, lsr, xxx, // 4
-        bvc, eor, xxx, xxx, xxx, eor, lsr, xxx, cli, eor, xxx, xxx, xxx, eor, lsr, xxx, // 5
-        rts, adc, xxx, xxx, xxx, adc, ror, xxx, pla, adc, ror, xxx, jmp, adc, ror, xxx, // 6
-        bvs, adc, xxx, xxx, xxx, adc, ror, xxx, sei, adc, xxx, xxx, xxx, adc, ror, xxx, // 7
-        xxx, sta, xxx, xxx, sty, sta, stx, xxx, dey, xxx, txa, xxx, sty, sta, stx, xxx, // 8
-        bcc, sta, xxx, xxx, sty, sta, stx, xxx, tya, sta, txs, xxx, xxx, sta, xxx, xxx, // 9
-        ldy, lda, ldx, xxx, ldy, lda, ldx, xxx, tay, lda, tax, xxx, ldy, lda, ldx, xxx, // A
-        bcs, lda, xxx, xxx, ldy, lda, ldx, xxx, clv, lda, tsx, xxx, ldy, lda, ldx, xxx, // B
-        cpy, cmp, xxx, xxx, cpy, cmp, dec, xxx, iny, cmp, dex, xxx, cpy, cmp, dec, xxx, // C
-        bne, cmp, xxx, xxx, xxx, cmp, dec, xxx, cld, cmp, xxx, xxx, xxx, cmp, dec, xxx, // D
-        cpx, sbc, xxx, xxx, cpx, sbc, inc, xxx, inx, sbc, nop, xxx, cpx, sbc, inc, xxx, // E
-        beq, sbc, xxx, xxx, xxx, sbc, inc, xxx, sed, sbc, xxx, xxx, xxx, sbc, inc, xxx  // F
-    };
+        private readonly CpuMemory _memory;
+        private byte A;    // ¿ÍÍÛÏÛÎˇÚÓ
+        private byte X;    // »Ì‰ÂÍÒ X 
+        private byte Y;    // »Ì‰ÂÍÒ Y
+        private ushort PC; // C˜ÂÚ˜ËÍ ÍÓÏ‡Ì‰, 2 ·‡ÈÚ‡
+        private byte S;    // ”Í‡Á‡ÚÂÎ¸ ‚Â¯ËÌ˚ ÒÚÂÍ‡
+
+        // (P) –Â„ËÒÚ ÒÚ‡ÚÛÒ‡ ‰ÎËÌÓÈ 1 ·‡ÈÚ, ‡Á·ËÚ Ì‡ 8 ·ËÚÓ‚
+        private bool C; //Carry flag
+        private bool Z; // Zero flag
+        private bool I; // Interrpt Disable
+        private bool D; // Decimal Flag
+        private bool B; // Break command
+        private bool V; // Overflow flag
+        private bool N; // Negative flag
+
+        public int _cycles { get; private set; }
+        int _idle;
+
+        private bool irqInterrupt;
+        private bool nmiInterrupt;
+
+        delegate void Instruction(AddressMode mode, ushort address);
+        Instruction[] _instructions;
+        
+        public Cpu(MemoryService.Console console)
+        {
+            _memory = console.CpuMemory;
+            _instructions = InitInstructions();
+        }
+
+        public void Reset()
+        {
+            PC = _memory.Read16(0xFFFC);
+            S = 0xFD;
+            A = 0;
+            X = 0;
+            Y = 0;
+            SetProcessorFlags((byte)0x24);
+
+            _cycles = 0;
+            _idle = 0;
+
+            nmiInterrupt = false;
+        }
+        
+        public void TriggerNmi()
+        {
+            nmiInterrupt = true;
+        }
+        
+        public void TriggerIrq()
+        {
+            if (!I) irqInterrupt = true;
+        }
+        
+        public void AddIdleCycles(int idleCycles)
+        {
+            _idle += idleCycles;
+        }
+        
+        public int Step()
+        {
+            if (_idle > 0)
+            {
+                _idle--;
+                return 1;
+            }
+
+            if (irqInterrupt) Irq();
+            irqInterrupt = false;
+
+            if (nmiInterrupt) Nmi();
+            nmiInterrupt = false;
+
+            int cyclesOrig = _cycles;
+            byte opCode = _memory.Read(PC);
+
+            AddressMode mode = (AddressMode)_addressModes[opCode];
+            
+            ushort address = 0;
+            bool pageCrossed = false;
+            switch (mode)
+            {
+                case AddressMode.Implied:
+                    break;
+                case AddressMode.Immediate:
+                    address = (ushort)(PC + 1);
+                    break;
+                case AddressMode.Absolute:
+                    address = _memory.Read16((ushort)(PC + 1));
+                    break;
+                case AddressMode.AbsoluteX:
+                    address = (ushort)(_memory.Read16((ushort)(PC + 1)) + X);
+                    pageCrossed = IsPageCross((ushort)(address - X), (ushort)X);
+                    break;
+                case AddressMode.AbsoluteY:
+                    address = (ushort)(_memory.Read16((ushort)(PC + 1)) + Y);
+                    pageCrossed = IsPageCross((ushort)(address - Y), (ushort)Y);
+                    break;
+                case AddressMode.Accumulator:
+                    break;
+                case AddressMode.Relative:
+                    address = (ushort)(PC + (sbyte)_memory.Read((ushort)(PC + 1)) + 2);
+                    break;
+                case AddressMode.ZeroPage:
+                    address = _memory.Read((ushort)(PC + 1));
+                    break;
+                case AddressMode.ZeroPageY:
+                    address = (ushort)((_memory.Read((ushort)(PC + 1)) + Y) & 0xFF);
+                    break;
+                case AddressMode.ZeroPageX:
+                    address = (ushort)((_memory.Read((ushort)(PC + 1)) + X) & 0xFF);
+                    break;
+                case AddressMode.Indirect:
+                    address = (ushort)_memory.Read16WrapPage((ushort)_memory.Read16((ushort)(PC + 1)));
+                    break;
+                case AddressMode.IndexedIndirect:
+                    ushort lowerNibbleAddress = (ushort)((_memory.Read((ushort)(PC + 1)) + X) & 0xFF);
+                    address = (ushort)_memory.Read16WrapPage((ushort)(lowerNibbleAddress));
+                    break;
+                case AddressMode.IndirectIndexed:
+                    ushort valueAddress = (ushort)_memory.Read((ushort)(PC + 1));
+                    address = (ushort)(_memory.Read16WrapPage(valueAddress) + Y);
+                    pageCrossed = IsPageCross((ushort)(address - Y), address);
+                    break;
+            }
+
+            PC += (ushort)_instructionSizes[opCode];
+            _cycles += _instructionCycles[opCode];
+
+            if (pageCrossed) _cycles += _instructionPageCycles[opCode];
+            _instructions[opCode](mode, address);
+
+            return _cycles - cyclesOrig;
+        }
+
+        void SetZn(byte value)
+        {
+            Z = value == 0;
+            N = ((value >> 7) & 1) == 1;
+        }
+
+        bool IsBitSet(byte value, int index)
+        {
+            return (value & (1 << index)) != 0;
+        }
+
+        byte PullStack()
+        {
+            S++;
+            byte data = _memory.Read((ushort)(0x0100 | S));
+            return data;
+        }
+
+        void PushStack(byte data)
+        {
+            _memory.Write((ushort)(0x100 | S), data);
+            S--;
+        }
+
+        ushort PullStack16()
+        {
+            byte lo = PullStack();
+            byte hi = PullStack();
+            return (ushort)((hi << 8) | lo);
+        }
+
+        void PushStack16(ushort data)
+        {
+            byte lo = (byte)(data & 0xFF);
+            byte hi = (byte)((data >> 8) & 0xFF);
+
+            PushStack(hi);
+            PushStack(lo);
+        }
+
+        byte GetStatusFlags()
+        {
+            byte flags = 0;
+
+            if (C) flags |= (byte)(1 << 0);
+            if (Z) flags |= (byte)(1 << 1);
+            if (I) flags |= (byte)(1 << 2);
+            if (D) flags |= (byte) (1 << 3);
+            if (B) flags |= (byte)(1 << 4);
+            flags |= (byte)(1 << 5);
+            if (V) flags |= (byte)(1 << 6);
+            if (N) flags |= (byte)(1 << 7);
+
+            return flags;
+        }
+
+        void SetProcessorFlags(byte flags)
+        {
+            C = IsBitSet(flags, 0);
+            Z = IsBitSet(flags, 1);
+            I = IsBitSet(flags, 2);
+            D = IsBitSet(flags, 3);
+            B = IsBitSet(flags, 4);
+            V = IsBitSet(flags, 6);
+            N = IsBitSet(flags, 7);
+        }
+
+        bool IsPageCross(ushort a, ushort b)
+        {
+            return (a & 0xFF) != (b & 0xFF);
+        }
+
+        void HandleBranchCycles(ushort origPc, ushort branchPc)
+        {
+            _cycles++;
+            _cycles += IsPageCross(origPc, branchPc) ? 1 : 0;
+        }
+
+        void Nmi()
+        {
+            PushStack16(PC);
+            PushStack(GetStatusFlags());
+            PC = _memory.Read16(0xFFFA);
+            I = true;
+        }
+
+        void Irq()
+        {
+            PushStack16(PC);
+            PushStack(GetStatusFlags());
+            PC = _memory.Read16(0xFFFE);
+            I = true;
+        }
+        
+        void xxx(AddressMode mode, ushort address)
+        {
+            throw new Exception("Illegal Opcode");
+        }
+        
+        void brk(AddressMode mode, ushort address)
+        {
+            PushStack16(PC);
+            PushStack(GetStatusFlags());
+            B = true;
+            PC = _memory.Read16((ushort)0xFFFE);
+        }
+        
+        void ror(AddressMode mode, ushort address)
+        {
+            bool Corig = C;
+            if (mode == AddressMode.Accumulator)
+            {
+                C = IsBitSet(A, 0);
+                A >>= 1;
+                A |= (byte)(Corig ? 0x80 : 0);
+
+                SetZn(A);
+            }
+            else
+            {
+                byte data = _memory.Read(address);
+                C = IsBitSet(data, 0);
+
+                data >>= 1;
+                data |= (byte)(Corig ? 0x80 : 0);
+
+                _memory.Write(address, data);
+
+                SetZn(data);
+            }
+        }
+        
+        void rti(AddressMode mode, ushort address)
+        {
+            SetProcessorFlags(PullStack());
+            PC = PullStack16();
+        }
+        
+        void txs(AddressMode mode, ushort address)
+        {
+            S = X;
+        }
+        
+        void tsx(AddressMode mode, ushort address)
+        {
+            X = S;
+            SetZn(X);
+        }
+        
+        void txa(AddressMode mode, ushort address)
+        {
+            A = X;
+            SetZn(A);
+        }
+        
+        void tya(AddressMode mode, ushort address)
+        {
+            A = Y;
+            SetZn(A);
+        }
+        
+        void tay(AddressMode mode, ushort address)
+        {
+            Y = A;
+            SetZn(Y);
+        }
+        
+        void tax(AddressMode mode, ushort address)
+        {
+            X = A;
+            SetZn(X);
+        }
+        
+        void dex(AddressMode mode, ushort address)
+        {
+            X--;
+            SetZn(X);
+        }
+        
+        void dey(AddressMode mode, ushort address)
+        {
+            Y--;
+            SetZn(Y);
+        }
+        
+        void inx(AddressMode mode, ushort address)
+        {
+            X++;
+            SetZn(X);
+        }
+        
+        void iny(AddressMode mode, ushort address)
+        {
+            Y++;
+            SetZn(Y);
+        }
+        
+        void sty(AddressMode mode, ushort address)
+        {
+            _memory.Write(address, Y);
+        }
+        
+        void cpx(AddressMode mode, ushort address)
+        {
+            byte data = _memory.Read(address);
+            SetZn((byte)(X - data));
+            C = X >= data;
+        }
+        
+        void cpy(AddressMode mode, ushort address)
+        {
+            byte data = _memory.Read(address);
+            SetZn((byte)(Y - data));
+            C = Y >= data;
+        }
+        
+        void sbc(AddressMode mode, ushort address)
+        {
+            byte data = _memory.Read(address);
+            int notCarry = (!C ? 1 : 0);
+
+            byte result = (byte)(A - data - notCarry);
+            SetZn(result);
+
+            // If an overflow occurs (result actually less than 0)
+            // the carry flag is cleared
+            C = (A - data - notCarry) >= 0 ? true : false;
+
+            V = ((A ^ data) & (A ^ result) & 0x80) != 0;
+
+            A = result;
+        }
+        
+        void adc(AddressMode mode, ushort address)
+        {
+            byte data = _memory.Read(address);
+            int carry = (C ? 1 : 0);
+
+            byte sum = (byte)(A + data + carry);
+            SetZn(sum);
+
+            C = (A + data + carry) > 0xFF;
+            V = (~(A ^ data) & (A ^ sum) & 0x80) != 0;
+
+            A = sum;
+        }
+        
+        void eor(AddressMode mode, ushort address)
+        {
+            byte data = _memory.Read(address);
+            A ^= data;
+            SetZn(A);
+        }
+
+        void clv(AddressMode mode, ushort address)
+        {
+            V = false;
+        }
+        
+        void bmi(AddressMode mode, ushort address)
+        {
+            PC = N ? address : PC;
+        }
+        
+        void plp(AddressMode mode, ushort address)
+        {
+            SetProcessorFlags((byte)(PullStack() & ~(0x10)));
+        }
+        
+        void cld(AddressMode mode, ushort address)
+        {
+            D = false;
+        }
+        
+        void cmp(AddressMode mode, ushort address)
+        {
+            byte data = _memory.Read(address);
+            C = A >= data;
+            SetZn((byte)(A - data));
+        }
+        
+        void and(AddressMode mode, ushort address)
+        {
+            byte data = _memory.Read(address);
+            A &= data;
+            SetZn(A);
+        }
+        
+        void pla(AddressMode mode, ushort address)
+        {
+            A = PullStack();
+            SetZn(A);
+        }
+        
+        void php(AddressMode mode, ushort address)
+        {
+            PushStack((byte)(GetStatusFlags() | 0x10));
+        }
+        
+        void sed(AddressMode mode, ushort address)
+        {
+            D = true;
+        }
+        
+        void cli(AddressMode mode, ushort address)
+        {
+            I = false;
+        }
+        
+        void sei(AddressMode mode, ushort address)
+        {
+            I = true;
+        }
+        
+        void dec(AddressMode mode, ushort address)
+        {
+            byte data = _memory.Read(address);
+            data--;
+            _memory.Write(address, data);
+            SetZn(data);
+        }
+        
+        void inc(AddressMode mode, ushort address)
+        {
+            byte data = _memory.Read(address);
+            data++;
+            _memory.Write(address, data);
+            SetZn(data);
+        }
+        
+        void rts(AddressMode mode, ushort address)
+        {
+            PC = (ushort)(PullStack16() + 1);
+        }
+        
+        void jsr(AddressMode mode, ushort address)
+        {
+            PushStack16((ushort)(PC - 1));
+            PC = address;
+        }
+        
+        void bpl(AddressMode mode, ushort address)
+        {
+            if (!N)
+            {
+                HandleBranchCycles(PC, address);
+                PC = address;
+            }
+        }
+        
+        void bvc(AddressMode mode, ushort address)
+        {
+            if (!V)
+            {
+                HandleBranchCycles(PC, address);
+                PC = address;
+            }
+        }
+        
+        void bvs(AddressMode mode, ushort address)
+        {
+            if (V)
+            {
+                HandleBranchCycles(PC, address);
+                PC = address;
+            }
+        }
+        
+        void bit(AddressMode mode, ushort address)
+        {
+            byte data = _memory.Read(address);
+            N = IsBitSet(data, 7);
+            V = IsBitSet(data, 6);
+            Z = (data & A) == 0;
+        }
+        
+        void bne(AddressMode mode, ushort address)
+        {
+            if (!Z)
+            {
+                HandleBranchCycles(PC, address);
+                PC = address;
+            }
+        }
+        
+        void beq(AddressMode mode, ushort address)
+        {
+            if (Z)
+            {
+                HandleBranchCycles(PC, address);
+                PC = address;
+            }
+        }
+        
+        void clc(AddressMode mode, ushort address)
+        {
+            C = false;
+        }
+        
+        void bcc(AddressMode mode, ushort address)
+        {
+            if (!C)
+            {
+                HandleBranchCycles(PC, address);
+                PC = address;
+            }
+        }
+        
+        void bcs(AddressMode mode, ushort address)
+        {
+            if (C)
+            {
+                HandleBranchCycles(PC, address);
+                PC = address;
+            }
+        }
+        
+        void sec(AddressMode mode, ushort address)
+        {
+            C = true;
+        }
+        
+        void nop(AddressMode mode, ushort address)
+        {
+
+        }
+        
+        void stx(AddressMode mode, ushort address)
+        {
+            _memory.Write(address, X);
+        }
+        
+        void ldy(AddressMode mode, ushort address)
+        {
+            Y = _memory.Read(address);
+            SetZn(Y);
+        }
+        
+        void ldx(AddressMode mode, ushort address)
+        {
+            X = _memory.Read(address);
+            SetZn(X);
+        }
+        
+        void jmp(AddressMode mode, ushort address)
+        {
+            PC = address;
+        }
+        
+        void sta(AddressMode mode, ushort address)
+        {
+            _memory.Write(address, A);
+        }
+        
+        void ora(AddressMode mode, ushort address)
+        {
+            A |= _memory.Read(address);
+            SetZn(A);
+        }
+        
+        void lda(AddressMode mode, ushort address)
+        {
+            A = _memory.Read(address);
+            SetZn(A);
+        }
+        
+        void pha(AddressMode mode, ushort address)
+        {
+            PushStack(A);
+        }
+
+        void asl(AddressMode mode, ushort address)
+        {
+            if (mode == AddressMode.Accumulator)
+            {
+                C = IsBitSet(A, 7);
+                A <<= 1;
+                SetZn(A);
+            }
+            else
+            {
+                byte data = _memory.Read(address);
+                C = IsBitSet(data, 7);
+                byte dataUpdated = (byte)(data << 1);
+                _memory.Write(address, dataUpdated);
+                SetZn(dataUpdated);
+            }
+        }
+        
+        void rol(AddressMode mode, ushort address)
+        {
+            bool Corig = C;
+            if (mode == AddressMode.Accumulator)
+            {
+                C = IsBitSet(A, 7);
+                A <<= 1;
+                A |= (byte)(Corig ? 1 : 0);
+
+                SetZn(A);
+            }
+            else
+            {
+                byte data = _memory.Read(address);
+                C = IsBitSet(data, 7);
+
+                data <<= 1;
+                data |= (byte)(Corig ? 1 : 0);
+
+                _memory.Write(address, data);
+
+                SetZn(data);
+            }
+        }
+        
+        void lsr(AddressMode mode, ushort address)
+        {
+            if (mode == AddressMode.Accumulator)
+            {
+                C = (A & 1) == 1;
+                A >>= 1;
+
+                SetZn(A);
+            }
+            else
+            {
+                byte value = _memory.Read(address);
+                C = (value & 1) == 1;
+
+                byte updatedValue = (byte)(value >> 1);
+
+                _memory.Write(address, updatedValue);
+
+                SetZn(updatedValue);
+            }
+        }
+
+        int[] _addressModes = {
+            6, 7, 6, 7, 11, 11, 11, 11, 6, 5, 4, 5, 1, 1, 1, 1,
+            10, 9, 6, 9, 12, 12, 12, 12, 6, 3, 6, 3, 2, 2, 2, 2,
+            1, 7, 6, 7, 11, 11, 11, 11, 6, 5, 4, 5, 1, 1, 1, 1,
+            10, 9, 6, 9, 12, 12, 12, 12, 6, 3, 6, 3, 2, 2, 2, 2,
+            6, 7, 6, 7, 11, 11, 11, 11, 6, 5, 4, 5, 1, 1, 1, 1,
+            10, 9, 6, 9, 12, 12, 12, 12, 6, 3, 6, 3, 2, 2, 2, 2,
+            6, 7, 6, 7, 11, 11, 11, 11, 6, 5, 4, 5, 8, 1, 1, 1,
+            10, 9, 6, 9, 12, 12, 12, 12, 6, 3, 6, 3, 2, 2, 2, 2,
+            5, 7, 5, 7, 11, 11, 11, 11, 6, 5, 6, 5, 1, 1, 1, 1,
+            10, 9, 6, 9, 12, 12, 13, 13, 6, 3, 6, 3, 2, 2, 3, 3,
+            5, 7, 5, 7, 11, 11, 11, 11, 6, 5, 6, 5, 1, 1, 1, 1,
+            10, 9, 6, 9, 12, 12, 13, 13, 6, 3, 6, 3, 2, 2, 3, 3,
+            5, 7, 5, 7, 11, 11, 11, 11, 6, 5, 6, 5, 1, 1, 1, 1,
+            10, 9, 6, 9, 12, 12, 12, 12, 6, 3, 6, 3, 2, 2, 2, 2,
+            5, 7, 5, 7, 11, 11, 11, 11, 6, 5, 6, 5, 1, 1, 1, 1,
+            10, 9, 6, 9, 12, 12, 12, 12, 6, 3, 6, 3, 2, 2, 2, 2,
+        };
+
+        int[] _instructionSizes = {
+            1, 2, 0, 0, 2, 2, 2, 0, 1, 2, 1, 0, 3, 3, 3, 0,
+            2, 2, 0, 0, 2, 2, 2, 0, 1, 3, 1, 0, 3, 3, 3, 0,
+            3, 2, 0, 0, 2, 2, 2, 0, 1, 2, 1, 0, 3, 3, 3, 0,
+            2, 2, 0, 0, 2, 2, 2, 0, 1, 3, 1, 0, 3, 3, 3, 0,
+            1, 2, 0, 0, 2, 2, 2, 0, 1, 2, 1, 0, 3, 3, 3, 0,
+            2, 2, 0, 0, 2, 2, 2, 0, 1, 3, 1, 0, 3, 3, 3, 0,
+            1, 2, 0, 0, 2, 2, 2, 0, 1, 2, 1, 0, 3, 3, 3, 0,
+            2, 2, 0, 0, 2, 2, 2, 0, 1, 3, 1, 0, 3, 3, 3, 0,
+            2, 2, 0, 0, 2, 2, 2, 0, 1, 0, 1, 0, 3, 3, 3, 0,
+            2, 2, 0, 0, 2, 2, 2, 0, 1, 3, 1, 0, 0, 3, 0, 0,
+            2, 2, 2, 0, 2, 2, 2, 0, 1, 2, 1, 0, 3, 3, 3, 0,
+            2, 2, 0, 0, 2, 2, 2, 0, 1, 3, 1, 0, 3, 3, 3, 0,
+            2, 2, 0, 0, 2, 2, 2, 0, 1, 2, 1, 0, 3, 3, 3, 0,
+            2, 2, 0, 0, 2, 2, 2, 0, 1, 3, 1, 0, 3, 3, 3, 0,
+            2, 2, 0, 0, 2, 2, 2, 0, 1, 2, 1, 0, 3, 3, 3, 0,
+            2, 2, 0, 0, 2, 2, 2, 0, 1, 3, 1, 0, 3, 3, 3, 0,
+        };
+
+        int[] _instructionCycles = {
+            7, 6, 2, 8, 3, 3, 5, 5, 3, 2, 2, 2, 4, 4, 6, 6,
+            2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
+            6, 6, 2, 8, 3, 3, 5, 5, 4, 2, 2, 2, 4, 4, 6, 6,
+            2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
+            6, 6, 2, 8, 3, 3, 5, 5, 3, 2, 2, 2, 3, 4, 6, 6,
+            2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
+            6, 6, 2, 8, 3, 3, 5, 5, 4, 2, 2, 2, 5, 4, 6, 6,
+            2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
+            2, 6, 2, 6, 3, 3, 3, 3, 2, 2, 2, 2, 4, 4, 4, 4,
+            2, 6, 2, 6, 4, 4, 4, 4, 2, 5, 2, 5, 5, 5, 5, 5,
+            2, 6, 2, 6, 3, 3, 3, 3, 2, 2, 2, 2, 4, 4, 4, 4,
+            2, 5, 2, 5, 4, 4, 4, 4, 2, 4, 2, 4, 4, 4, 4, 4,
+            2, 6, 2, 8, 3, 3, 5, 5, 2, 2, 2, 2, 4, 4, 6, 6,
+            2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
+            2, 6, 2, 8, 3, 3, 5, 5, 2, 2, 2, 2, 4, 4, 6, 6,
+            2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
+        };
+
+        int[] _instructionPageCycles = {
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            1, 1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 1, 1, 1, 1, 1,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0,
+        };
+
+        private Instruction[] InitInstructions() => new Instruction[]
+        {
+            //  0    1    2    3    4    5    6    7    8    9    A    B    C    D    E    F
+            brk, ora, xxx, xxx, xxx, ora, asl, xxx, php, ora, asl, xxx, xxx, ora, asl, xxx, // 0
+            bpl, ora, xxx, xxx, xxx, ora, asl, xxx, clc, ora, xxx, xxx, xxx, ora, asl, xxx, // 1
+            jsr, and, xxx, xxx, bit, and, rol, xxx, plp, and, rol, xxx, bit, and, rol, xxx, // 2
+            bmi, and, xxx, xxx, xxx, and, rol, xxx, sec, and, xxx, xxx, xxx, and, rol, xxx, // 3
+            rti, eor, xxx, xxx, xxx, eor, lsr, xxx, pha, eor, lsr, xxx, jmp, eor, lsr, xxx, // 4
+            bvc, eor, xxx, xxx, xxx, eor, lsr, xxx, cli, eor, xxx, xxx, xxx, eor, lsr, xxx, // 5
+            rts, adc, xxx, xxx, xxx, adc, ror, xxx, pla, adc, ror, xxx, jmp, adc, ror, xxx, // 6
+            bvs, adc, xxx, xxx, xxx, adc, ror, xxx, sei, adc, xxx, xxx, xxx, adc, ror, xxx, // 7
+            xxx, sta, xxx, xxx, sty, sta, stx, xxx, dey, xxx, txa, xxx, sty, sta, stx, xxx, // 8
+            bcc, sta, xxx, xxx, sty, sta, stx, xxx, tya, sta, txs, xxx, xxx, sta, xxx, xxx, // 9
+            ldy, lda, ldx, xxx, ldy, lda, ldx, xxx, tay, lda, tax, xxx, ldy, lda, ldx, xxx, // A
+            bcs, lda, xxx, xxx, ldy, lda, ldx, xxx, clv, lda, tsx, xxx, ldy, lda, ldx, xxx, // B
+            cpy, cmp, xxx, xxx, cpy, cmp, dec, xxx, iny, cmp, dex, xxx, cpy, cmp, dec, xxx, // C
+            bne, cmp, xxx, xxx, xxx, cmp, dec, xxx, cld, cmp, xxx, xxx, xxx, cmp, dec, xxx, // D
+            cpx, sbc, xxx, xxx, cpx, sbc, inc, xxx, inx, sbc, nop, xxx, cpx, sbc, inc, xxx, // E
+            beq, sbc, xxx, xxx, xxx, sbc, inc, xxx, sed, sbc, xxx, xxx, xxx, sbc, inc, xxx  // F
+        };
+    }
 }
